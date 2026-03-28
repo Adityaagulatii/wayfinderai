@@ -1,0 +1,5 @@
+kroger-api
+networkx
+matplotlib
+python-dotenv
+ollama

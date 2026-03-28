@@ -1,0 +1,13 @@
+# Secrets & tokens — never commit these
+.env
+*.json
+
+# Keep data/ folder but not its contents
+data/*
+!data/.gitkeep
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
