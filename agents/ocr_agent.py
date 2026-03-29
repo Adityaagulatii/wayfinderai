@@ -194,7 +194,6 @@ def select_route():
         except Exception:
             print("Invalid input")
 
-# ── Navigator ──────────────────────────────────────────────────────────────
 def _node_pos(node_id: str) -> tuple[float, float]:
     """Return (x, y) position of a node from STORE_NODES."""
     n = STORE_NODES.get(node_id, {})
