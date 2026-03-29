@@ -285,7 +285,7 @@ class Navigator:
         nxt_name = STORE_NODES.get(nxt, {}).get("name", nxt) if nxt else ""
         return f"At: {curr}  |  Next: {nxt_name}", (0, 255, 255)
 
-def draw_minimap(frame, navigator):
+def draw_minimap(frame: np.ndarray, navigator: "Navigator") -> np.ndarray:
     h, w   = frame.shape[:2]
     mw, mh = 130, min(340, h - 20)
     margin = 10
