@@ -6,6 +6,9 @@
 data/*
 !data/.gitkeep
 
+# YOLO model weights — too large for git
+*.pt
+
 # Python cache
 __pycache__/
 **/__pycache__/
