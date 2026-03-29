@@ -42,7 +42,11 @@ def _path_cost(graph: nx.DiGraph, ordered_stops: list[str]) -> float:
 
 
 def algo_inorder(graph: nx.DiGraph, stops: list[str]) -> tuple[list[str], float]:
-    """Algorithm 1: visit stops exactly in list order."""
+    """Algorithm 1 — Dijkstra in-order: visit stops exactly in the order given.
+
+    Returns (ordered_stops, total_cost) where cost is sum of Dijkstra edge weights.
+    Serves as the baseline to compare against the nearest-neighbor greedy algorithm.
+    """
     cost = _path_cost(graph, stops)
     return stops, cost
 
