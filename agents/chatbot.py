@@ -184,7 +184,7 @@ def filter_to_inventory(items: list[str], known_keywords: set[str]) -> list[str]
 
 
 def run_cli():
-    # ── Agent 1: load store + inventory ───────────────────────────────────
+    # ── Agent 1: load store + inventory ────────────
     print("Loading store inventory...")
     from agents.store_builder import build_store
     summary = build_store()
@@ -201,7 +201,7 @@ def run_cli():
     beep("start")
     speak("Welcome to Kroger.")
 
-    # ── Get request — always via voice ───────────────────────────────────
+    # ── Get request — always via voice ─────────────
     print()
     print("  You can say things like:")
     print('    "carbonara for 4"  |  "vegan dinner"  |  "game day snacks"')
@@ -217,7 +217,7 @@ def run_cli():
     print(f"  Request : {user_request}")
     print("  Thinking...")
 
-    # ── Agent 0: single LLM call ──────────────────────────────────────────
+    # ── Agent 0: single LLM call ─────────────────
     system_prompt = _SYSTEM_TEMPLATE.format(inventory_block=inventory_block)
     raw_items     = extract_ingredients(user_request, system_prompt)
     final_list    = filter_to_inventory(raw_items, known_keywords)
@@ -233,7 +233,7 @@ def run_cli():
         speak(msg)
         sys.exit(1)
 
-    # ── LLM voice agent: friendly intro ──────────────────────────────────
+    # ── LLM voice agent: friendly intro ──────────────
     intro = voice_agent_respond(
         context=f"User asked for '{user_request}'. Found {len(final_list)} ingredients: {', '.join(final_list)}.",
         situation="Give a warm friendly 1-2 sentence response about what you found. Be natural."
@@ -242,7 +242,7 @@ def run_cli():
     print(f"  {intro}")
     speak(intro)
 
-    # ── Print ingredient list with aisle locations ────────────────────────
+    # ── Print ingredient list with aisle locations ──────────
     print()
     print("=" * 60)
     print(f"  Ingredients found in store  ({len(final_list)} items)")
@@ -259,7 +259,7 @@ def run_cli():
     speak("Here are your ingredients: " + ", ".join(final_list) + ".")
     print()
 
-    # ── LLM voice agent: ask if ready ─────────────────────────────────────
+    # ── LLM voice agent: ask if ready ───────────
     ready_prompt = voice_agent_respond(
         context=f"Just listed {len(final_list)} ingredients for '{user_request}'.",
         situation="Ask the user to let you know when they are ready to start navigation. Keep it short."
