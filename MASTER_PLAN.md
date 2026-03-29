@@ -157,6 +157,8 @@ Output: "Pasta found. Middle shelf, left side."
 
 NavCog is the most technically comparable system. It uses BLE beacons + manual floor plan mapping and was piloted in a single Target store. Deploying it to one new store requires physical beacon installation, manual floor plan digitization, and weeks of calibration. WayfinderAI requires none of this — the Kroger API provides the implicit floor plan for every store automatically. NavCog has never scaled beyond its pilot. WayfinderAI scales to 2,800+ stores from the first API call.
 
+**The Kroger API integration is the moat.** If WayfinderAI pre-caches navigation graphs for all 2,800+ Kroger locations, any competitor attempting to replicate this faces a significant bootstrapping disadvantage: they must independently negotiate API access, build the same graph extraction pipeline, and pre-warm the same store dataset — months of work that WayfinderAI completed in 24 hours.
+
 ---
 
 ## Scalability Design
