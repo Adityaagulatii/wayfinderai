@@ -59,6 +59,8 @@ Output: step-by-step spoken route + `data/store_map.png`
 
 Graph edges are weighted by physical distance: standard aisle-to-aisle connections = weight 1 (~15ft segment), cross-aisle jumps = weight 2, entrance/perimeter edges = weight 3. Dijkstra respects these weights to produce routes that minimize actual walking distance, not just hop count.
 
+**Graceful degradation with incomplete API data:** If the Kroger API returns fewer departments than expected (rate limit, partial response, or store-specific gaps), `build_graph()` silently skips missing nodes and only adds edges where both endpoints exist. The navigation graph is valid as long as at least one path exists from entrance to checkout — degraded coverage rather than total failure. Pre-cached `store_graph.json` for the Cincinnati demo store is committed to the repo as a zero-API fallback.
+
 **Agent 3 — Location Confirmation Agent**
 Input: camera image of aisle sign
 Job: EasyOCR extracts aisle number (format A1–A42), updates session state. Claude Vision fallback if OCR confidence < 0.70. OCR runs every 5 frames on a 50% downscaled image for real-time performance.
