@@ -105,21 +105,21 @@ def match_text(texts: list[tuple[str, float]]) -> tuple[str | None, str | None, 
     return None, None, 0
 
 
-def load_memory():
+def load_memory() -> dict:
     try:
         with open(MEMORY_PATH) as f:
             return json.load(f)
     except Exception:
         return {"history": []}
 
-def save_memory(memory):
+def save_memory(memory: dict) -> None:
     os.makedirs(os.path.dirname(MEMORY_PATH), exist_ok=True)
     with open(MEMORY_PATH, "w") as f:
         json.dump(memory, f, indent=4)
 
 memory = load_memory()
 
-def get_llama_instruction(current, next_node, progress):
+def get_llama_instruction(current: str, next_node: str, progress: str) -> str:
     curr_name  = STORE_NODES.get(current,   {}).get("name",  current)
     next_name  = STORE_NODES.get(next_node, {}).get("name",  next_node)
     next_audio = STORE_NODES.get(next_node, {}).get("audio", "")
@@ -156,7 +156,7 @@ Give a short friendly navigation instruction in 1-2 sentences. Plain text only."
     except Exception:
         return f"Head to {next_name}."
 
-def select_route():
+def select_route() -> list[str]:
     # Auto-load from Agent 2 if available
     if os.path.exists(LAST_ROUTE):
         with open(LAST_ROUTE) as f:
@@ -285,7 +285,7 @@ class Navigator:
         nxt_name = STORE_NODES.get(nxt, {}).get("name", nxt) if nxt else ""
         return f"At: {curr}  |  Next: {nxt_name}", (0, 255, 255)
 
-def draw_minimap(frame, navigator):
+def draw_minimap(frame: np.ndarray, navigator: "Navigator") -> np.ndarray:
     h, w   = frame.shape[:2]
     mw, mh = 130, min(340, h - 20)
     margin = 10
@@ -365,7 +365,7 @@ def draw_minimap(frame, navigator):
     frame[y1:y1+mh, x1:x1+mw] = blended
     return frame
 
-def draw_overlay(frame, ocr_results, navigator, detected):
+def draw_overlay(frame: np.ndarray, ocr_results: list, navigator: "Navigator", detected: str | None) -> np.ndarray:
     h, w = frame.shape[:2]
 
     # OCR boxes — green (sign text detected)
