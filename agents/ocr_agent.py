@@ -105,7 +105,6 @@ def match_text(texts: list[tuple[str, float]]) -> tuple[str | None, str | None, 
     return None, None, 0
 
 
-# ── llama3.2 ───────────────────────────────────────────────────────────────
 def load_memory():
     try:
         with open(MEMORY_PATH) as f:
