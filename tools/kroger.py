@@ -94,7 +94,7 @@ def search_product(query: str, store_id: str) -> dict:
 # ---------------------------------------------------------------------------
 NODE_MAP: dict[str, dict] = {
     "0": {
-        "name": "Front Perimeter",
+        "name": "Aisle 0 - Front Perimeter",
         "items": [
             ("ground beef",   "left side",  "bottom shelf"),
             ("ham",           "left side",  "lower shelf"),
@@ -105,7 +105,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "1": {
-        "name": "Dairy & Bakery",
+        "name": "Aisle 1 - Dairy & Bakery",
         "items": [
             ("butter",        "left side",  "middle shelf"),
             ("cheese",        "left side",  "middle shelf"),
@@ -121,7 +121,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "2": {
-        "name": "Dry Goods",
+        "name": "Aisle 2 - Dry Goods",
         "items": [
             ("pasta",         "left side",  "middle shelf"),
             ("spaghetti",     "left side",  "middle shelf"),
@@ -136,7 +136,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "3": {
-        "name": "Baking & Coffee",
+        "name": "Aisle 3 - Baking & Coffee",
         "items": [
             ("flour",         "left side",  "lower shelf"),
             ("sugar",         "left side",  "middle shelf"),
@@ -153,7 +153,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "4": {
-        "name": "Breakfast & Crackers",
+        "name": "Aisle 4 - Breakfast & Crackers",
         "items": [
             ("oatmeal",       "left side",  "middle shelf"),
             ("cereal",        "right side", "middle shelf"),
@@ -166,7 +166,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "5": {
-        "name": "Snacks",
+        "name": "Aisle 5 - Snacks",
         "items": [
             ("chips",         "left side",  "middle shelf"),
             ("sports drink",  "left side",  "lower shelf"),
@@ -176,7 +176,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "6": {
-        "name": "Beverages",
+        "name": "Aisle 6 - Beverages",
         "items": [
             ("water",         "left side",  "lower shelf"),
             ("soda",          "right side", "middle shelf"),
@@ -185,7 +185,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "7": {
-        "name": "Personal Care",
+        "name": "Aisle 7 - Personal Care",
         "items": [
             ("toothpaste",    "left side",  "upper shelf"),
             ("soap",          "left side",  "middle shelf"),
@@ -195,7 +195,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "8": {
-        "name": "Frozen Foods",
+        "name": "Aisle 8 - Frozen Foods",
         "items": [
             ("frozen pizza",  "left side",  "middle shelf"),
             ("frozen vegetables","left side","lower shelf"),
@@ -207,7 +207,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "9": {
-        "name": "Snacks & Popcorn",
+        "name": "Aisle 9 - Snacks & Popcorn",
         "items": [
             ("popcorn",       "right side", "middle shelf"),
             ("nuts",          "right side", "upper shelf"),
@@ -215,7 +215,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "11": {
-        "name": "Canned Goods",
+        "name": "Aisle 11 - Canned Goods",
         "items": [
             ("broth",         "left side",  "upper shelf"),
             ("canned corn",   "right side", "middle shelf"),
@@ -224,7 +224,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "12": {
-        "name": "Oils & Condiments",
+        "name": "Aisle 12 - Oils & Condiments",
         "items": [
             ("olive oil",     "left side",  "middle shelf"),
             ("vegetable oil", "left side",  "lower shelf"),
@@ -234,7 +234,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "16": {
-        "name": "International & Bread",
+        "name": "Aisle 16 - International & Bread",
         "items": [
             ("tortillas",     "left side",  "middle shelf"),
             ("soy sauce",     "right side", "upper shelf"),
@@ -244,7 +244,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "18": {
-        "name": "Canned Sauces",
+        "name": "Aisle 18 - Canned Sauces",
         "items": [
             ("canned beans",  "left side",  "middle shelf"),
             ("tomato sauce",  "left side",  "lower shelf"),
@@ -253,7 +253,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "22": {
-        "name": "Granola & Syrup",
+        "name": "Aisle 22 - Granola & Syrup",
         "items": [
             ("granola",       "left side",  "middle shelf"),
             ("maple syrup",   "left side",  "upper shelf"),
@@ -308,7 +308,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "34": {
-        "name": "Yogurt",
+        "name": "Aisle 34 - Yogurt",
         "items": [
             ("yogurt",        "left side",  "middle shelf"),
             ("greek yogurt",  "right side", "middle shelf"),
@@ -316,7 +316,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "40": {
-        "name": "Frozen Meals",
+        "name": "Aisle 40 - Frozen Meals",
         "items": [
             ("pot pie",       "right side", "middle shelf"),
             ("frozen dinners","left side",  "middle shelf"),
@@ -325,7 +325,7 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     "42": {
-        "name": "Frozen Desserts",
+        "name": "Aisle 42 - Frozen Desserts",
         "items": [
             ("frozen yogurt", "right side", "middle shelf"),
             ("gelato",        "left side",  "middle shelf"),

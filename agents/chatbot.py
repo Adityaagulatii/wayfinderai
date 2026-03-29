@@ -1,15 +1,28 @@
 """
-Agent 0 — Pre-Shopping Chatbot
-Pipeline position: Agent 1 (Store Builder) -> Agent 0 (Chatbot) -> Agent 2 (Navigator)
+Agent 0 — Smart Ingredient Extractor
+-------------------------------------
+Pipeline: Agent 1 (Store Builder) -> Agent 0 (this) -> Agent 2 (Navigator)
 
-Agent 1 builds the store graph and exposes the full inventory.
-Agent 0 reads that inventory and injects it into the LLM system prompt so that:
-  - Recipe suggestions only include items the store actually carries
-  - Items not in stock are flagged, not added to the nav list
-Agent 2 receives a clean, store-verified shopping list.
+Takes ANY natural language request and produces a clean grocery list
+using only items that exist in Agent 1's NODE_MAP store inventory.
+Agent 2 is fully responsible for routing, directions, and the map.
+
+Handles:
+  - Recipe names          ("carbonara", "tacos")
+  - Meals for N people    ("pasta for 6")
+  - Full week planning    ("plan my meals for the week")
+  - Dietary preferences   ("vegan dinner", "keto breakfast", "gluten-free")
+  - What can I make?      ("I have eggs and cheese, what can I make?")
+  - Budget constraints    ("dinner under $15")
+  - Occasions             ("game day snacks", "birthday cake")
+  - Health goals          ("high protein meals", "low carb week")
+  - Raw lists             ("milk, eggs, bread, chips")
 
 Usage:
-  python agents/chatbot.py
+  python agents/chatbot.py "carbonara for 4"
+  python agents/chatbot.py "vegan dinner ideas"
+  python agents/chatbot.py "plan my meals for the week"
+  python agents/chatbot.py          # prompts interactively
 """
 import os
 import sys
@@ -25,38 +38,37 @@ except ImportError:
 MODEL = "llama3.2:latest"
 
 _SYSTEM_TEMPLATE = """\
-You are a helpful pre-shopping assistant for a Kroger grocery store.
-Help the user build their grocery list through natural conversation.
+You are a smart grocery planning assistant for a Kroger store.
+Your ONLY job: take ANY user request and produce a grocery shopping list \
+using ONLY items from this store's inventory.
 
-== STORE INVENTORY (for your reference) ==
+== STORE INVENTORY ==
 {inventory_block}
 
-== RULES ==
-1. Keep replies concise.
-2. When the user mentions a meal or recipe, list ALL proper ingredients for that recipe,
-   one per line as a simple bullet list. Do NOT add any availability labels — the system handles that.
-   Example format:
-     - spaghetti
-     - bacon
-     - eggs
-     - parmesan cheese
-     - black pepper
-3. When the user asks for suggestions, list relevant grocery items as bullets.
-4. Ask the user which items to add to their list.
-5. When the user says they are done / ready / "start" / "go" / "done",
-   reply ONLY with this exact line and nothing else:
+== HOW TO HANDLE ANY REQUEST ==
+- Recipe name        ("carbonara"):          list all ingredients needed
+- Meal for N people  ("pasta for 4"):        scale portions, list each item once
+- Week meal plan     ("plan my week"):       suggest 7 meals, collect all unique ingredients
+- Dietary filter     ("vegan / keto / gluten-free"): only include matching inventory items
+- What can I make?   ("I have eggs and cheese"): suggest a meal + add the missing items
+- Budget             ("dinner under $20"):   pick affordable staples from inventory
+- Occasion           ("game day snacks"):    pick relevant items from inventory
+- Health goal        ("high protein"):       pick matching items from inventory
+- Raw list           ("milk eggs bread"):    use those items directly if in inventory
+
+== STRICT RULES ==
+1. Think step-by-step about what the request needs.
+2. Map EVERY ingredient to the closest matching keyword from STORE INVENTORY above.
+3. If an ingredient has NO match in the store — skip it entirely.
+4. Output ONLY this single line, no explanation, no preamble:
    READY: item1, item2, item3, ...
-   List every item the user said yes to, lowercase, comma-separated.
 """
 
 
 def _build_inventory_block() -> tuple[str, set[str]]:
-    """
-    Pull inventory directly from Agent 1's NODE_MAP.
-    Returns (formatted string for system prompt, set of all known keywords).
-    """
+    """Build inventory text + keyword set from Agent 1's NODE_MAP."""
     from tools.kroger import NODE_MAP
-    lines = []
+    lines: list[str] = []
     all_keywords: set[str] = set()
     for _, node in NODE_MAP.items():
         if not node.get("items"):
@@ -68,188 +80,145 @@ def _build_inventory_block() -> tuple[str, set[str]]:
     return "\n".join(lines), all_keywords
 
 
-class PreShoppingChatbot:
-    def __init__(self, inventory_block: str, known_keywords: set[str], store_id: str = ""):
-        self.system_prompt  = _SYSTEM_TEMPLATE.format(
-            inventory_block=inventory_block,
-        )
-        self.known_keywords = known_keywords
-        self.store_id       = store_id
-        self.shopping_list: list[str] = []
-        self.history: list[dict]      = []
+def extract_ingredients(user_request: str, system_prompt: str) -> list[str]:
+    """One LLM call → raw list of item strings from the READY: line."""
+    response = ollama.chat(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_request},
+        ],
+    )
+    reply = response["message"]["content"].strip()
 
-    def _annotate_availability(self, text: str) -> str:
-        """
-        Scan the LLM reply for bullet-point lines (- item or * item).
-        Append a Python-verified [in store] or [not available] tag to each one.
-        """
-        import re
-        out = []
-        in_store_count = 0
-        total_count    = 0
+    # Parse READY: line
+    for line in reply.splitlines():
+        if "READY:" in line.upper():
+            items_str = line[line.upper().index("READY:") + 6:].strip()
+            return [i.strip().lower() for i in items_str.split(",") if i.strip()]
 
-        for line in text.splitlines():
-            bullet = re.match(r'^(\s*[-*\u2022\u2013]\s*)(.+)$', line)
-            if bullet:
-                prefix, ingredient = bullet.group(1), bullet.group(2).strip()
-                # Strip any existing availability tag the LLM may have added
-                ingredient = re.sub(
-                    r'\s*[\[\(](in store|not available)[^\]\)]*[\]\)]\s*',
-                    '', ingredient, flags=re.IGNORECASE
-                ).strip()
-                words = re.findall(r'[a-z]+', ingredient.lower())
-                available = any(w in self.known_keywords for w in words)
-                total_count += 1
+    # Fallback: LLM ignored the format — treat entire reply as a comma list
+    return [i.strip().lower() for i in reply.split(",") if i.strip()]
 
-                if available:
-                    in_store_count += 1
-                    # Look up real product name + price from Kroger API
-                    product_info = ""
-                    if self.store_id:
-                        try:
-                            from tools.kroger import search_product
-                            # Use the matched keyword as the search term for better results
-                            kw = next((w for w in words if w in self.known_keywords), ingredient)
-                            result = search_product(kw, self.store_id)
-                            if result["found"] and result.get("product"):
-                                name  = result["product"]
-                                price = result.get("price")
-                                product_info = f"  ->  {name}"
-                                if price:
-                                    product_info += f"  ${price:.2f}"
-                        except Exception:
-                            pass
-                    out.append(f"{prefix}{ingredient}  [in store]{product_info}")
-                else:
-                    out.append(f"{prefix}{ingredient}  [not available]")
-            else:
-                out.append(line)
 
-        result = "\n".join(out)
-        if total_count > 1:
-            result += f"\n\n{in_store_count} of {total_count} ingredients available at this store."
-        return result
+def filter_to_inventory(items: list[str], known_keywords: set[str]) -> list[str]:
+    """
+    Safety net: strip anything the LLM invented that isn't in the store.
+    Also normalises 'scrambled eggs' -> 'eggs', 'orange juice' -> 'orange juice'.
+    """
+    valid: list[str] = []
+    seen:  set[str]  = set()
 
-    def chat(self, user_msg: str) -> tuple[str, bool]:
-        """
-        Returns (bot_reply, ready_to_navigate).
-        ready_to_navigate=True when the LLM outputs the READY: signal.
-        """
-        self.history.append({"role": "user", "content": user_msg})
+    for item in items:
+        item_lower = item.lower().strip()
 
-        response = ollama.chat(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                *self.history,
-            ],
-        )
+        # Direct match (e.g. 'orange juice', 'black pepper')
+        if item_lower in known_keywords:
+            key = item_lower
+        else:
+            # Try longest multi-word keyword that appears in the item string
+            key = next(
+                (kw for kw in sorted(known_keywords, key=len, reverse=True)
+                 if kw in item_lower),
+                None,
+            )
+            if key is None:
+                # Try any single word match
+                words = item_lower.split()
+                key = next((w for w in words if w in known_keywords), None)
 
-        reply = self._annotate_availability(response["message"]["content"].strip())
-        self.history.append({"role": "assistant", "content": reply})
+        if key and key not in seen:
+            seen.add(key)
+            valid.append(key)
 
-        upper = reply.upper()
-        if "READY:" in upper:
-            for line in reply.splitlines():
-                if "READY:" in line.upper():
-                    idx = line.upper().index("READY:")
-                    items_str = line[idx + len("READY:"):].strip()
-                    raw_items = [i.strip().lower() for i in items_str.split(",") if i.strip()]
-                    # Normalize each item to its best matching inventory keyword
-                    self.shopping_list = [self._to_keyword(i) for i in raw_items]
-                    break
-            return reply, True
-
-        return reply, False
-
-    def _to_keyword(self, item: str) -> str:
-        """
-        Map a verbose item string (e.g. 'scrambled eggs') to its shortest
-        matching inventory keyword (e.g. 'eggs'). Falls back to item as-is.
-        """
-        import re
-        words = re.findall(r'[a-z]+', item.lower())
-        for w in words:
-            if w in self.known_keywords:
-                return w
-        # Try multi-word match (e.g. 'orange juice', 'black pepper')
-        for kw in sorted(self.known_keywords, key=len, reverse=True):
-            if kw in item.lower():
-                return kw
-        return item
-
-    def get_list(self) -> list[str]:
-        """Deduplicated final shopping list."""
-        seen, result = set(), []
-        for item in self.shopping_list:
-            if item not in seen:
-                seen.add(item)
-                result.append(item)
-        return result
+    return valid
 
 
 def run_cli():
-    # ── Step 1: Agent 1 — load store + inventory ──────────────────────────
-    print("Loading store inventory from Agent 1...")
+    # ── Agent 1: load store + inventory ───────────────────────────────────
+    print("Loading store inventory...")
     from agents.store_builder import build_store
     summary = build_store()
 
     inventory_block, known_keywords = _build_inventory_block()
+    from tools.kroger import NODE_MAP, _KEYWORD_INDEX
 
     print()
-    print("=" * 58)
+    print("=" * 60)
     print(f"  WayfinderAI  |  {summary['store_name']}")
     print(f"  {summary['address']}")
-    print(f"  {summary['nodes']} departments  |  {len(known_keywords)} items in inventory")
-    print("=" * 58)
-    print("  Tell me what you need, or ask for a recipe.")
-    print("  Say 'done' or 'start shopping' when your list is ready.")
-    print("=" * 58)
+    print(f"  {summary['nodes']} aisles  |  {len(known_keywords)} items in store")
+    print("=" * 60)
+
+    # ── Get request ───────────────────────────────────────────────────────
+    if len(sys.argv) > 1:
+        user_request = " ".join(sys.argv[1:])
+    else:
+        print()
+        print("  Examples:")
+        print('    "carbonara for 4"')
+        print('    "vegan dinner"')
+        print('    "plan my meals for the week"')
+        print('    "I have eggs and cheese, what can I make?"')
+        print('    "game day snacks"')
+        print('    "high protein breakfast"')
+        print()
+        user_request = input("  What would you like to make or buy? ").strip()
+
+    if not user_request:
+        print("No request given. Exiting.")
+        sys.exit(0)
+
+    print()
+    print(f"  Request : {user_request}")
+    print("  Thinking...")
+
+    # ── Agent 0: single LLM call ──────────────────────────────────────────
+    system_prompt = _SYSTEM_TEMPLATE.format(inventory_block=inventory_block)
+    raw_items     = extract_ingredients(user_request, system_prompt)
+    final_list    = filter_to_inventory(raw_items, known_keywords)
+
+    if not final_list:
+        print("\n  No matching items found in the store for that request.")
+        print("  Try being more specific, e.g. 'pasta', 'chicken', 'snacks'.")
+        sys.exit(1)
+
+    # ── Print ingredient list with aisle locations ────────────────────────
+    print()
+    print("=" * 60)
+    print(f"  Ingredients found in store  ({len(final_list)} items)")
+    print("=" * 60)
+    for item in final_list:
+        location = _KEYWORD_INDEX.get(item)
+        if location:
+            node_id, side, shelf = location
+            aisle = NODE_MAP[node_id]["name"]
+            print(f"  • {item:<24} {aisle}  |  {side}, {shelf}")
+        else:
+            print(f"  • {item}")
+    print("=" * 60)
     print()
 
-    # ── Step 2: Agent 0 — chat to build verified list ─────────────────────
-    bot = PreShoppingChatbot(inventory_block, known_keywords, store_id=summary["store_id"])
+    # ── Agent 2: navigate ─────────────────────────────────────────────────
+    print("  Starting navigation (Agent 2)...")
+    print()
+    from agents.navigator import navigate
+    navigate(final_list)
 
-    while True:
-        try:
-            user_input = input("You: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nExiting.")
-            break
-
-        if not user_input:
-            continue
-
-        print("Bot: ", end="", flush=True)
-        reply, ready = bot.chat(user_input)
-
-        if ready:
-            final_list = bot.get_list()
-
-            # Hide the raw READY: line — show a clean summary instead
-            visible = "\n".join(
-                ln for ln in reply.splitlines()
-                if "READY:" not in ln.upper()
-            ).strip()
-            if visible:
-                print(visible)
-
-            print()
-            print("=" * 58)
-            print("  Your shopping list:")
-            for i, item in enumerate(final_list, 1):
-                print(f"    {i}. {item}")
-            print()
-            print("  Starting navigation (Agent 2)...")
-            print("=" * 58)
-
-            # ── Step 3: Agent 2 — route + map ─────────────────────────────
-            from agents.navigator import navigate
-            navigate(final_list)
-            break
+    # ── Final summary: just the ingredients ───────────────────────────────
+    print()
+    print("=" * 60)
+    print(f"  INGREDIENTS  ({len(final_list)} items for: {user_request})")
+    print("=" * 60)
+    for i, item in enumerate(final_list, 1):
+        location = _KEYWORD_INDEX.get(item)
+        if location:
+            node_id, side, shelf = location
+            aisle = NODE_MAP[node_id]["name"]
+            print(f"  {i:2}. {item:<24} {aisle}")
         else:
-            print(reply)
-            print()
+            print(f"  {i:2}. {item}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

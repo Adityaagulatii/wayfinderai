@@ -77,6 +77,99 @@ def algo_nearest_neighbor(graph: nx.DiGraph, stops: list[str]) -> tuple[list[str
 
 
 # ---------------------------------------------------------------------------
+# Route tree builder
+# ---------------------------------------------------------------------------
+
+def _compute_direction(prev_pos, curr_pos, next_pos) -> str:
+    """
+    Given three (x,y) positions, return ST / TL / TR for the turn at curr.
+    Uses 2D cross product: positive = left, negative = right.
+    """
+    if prev_pos is None or next_pos is None:
+        return "ST"
+    dx1 = curr_pos[0] - prev_pos[0]
+    dy1 = curr_pos[1] - prev_pos[1]
+    dx2 = next_pos[0] - curr_pos[0]
+    dy2 = next_pos[1] - curr_pos[1]
+    cross = dx1 * dy2 - dy1 * dx2
+    if abs(cross) < 0.05:
+        return "ST"
+    return "TL" if cross > 0 else "TR"
+
+
+_DIR_LABEL = {
+    "ST": "Go straight ahead",
+    "TL": "Turn left",
+    "TR": "Turn right",
+}
+_DIR_ARROW = {"ST": "|", "TL": "\\", "TR": "/"}
+
+
+def build_route_tree(graph: nx.DiGraph, route: list[str],
+                     node_products: dict[str, list[str]]) -> dict:
+    """
+    Build a nested tree dict (like 015.json) from the ordered route.
+    Each node records direction-from-parent and a spoken narrative.
+    """
+    def _pos(nid):
+        if nid in graph:
+            n = graph.nodes[nid]
+            return (n.get("x", 5.0), n.get("y", 2.0))
+        return (5.0, 2.0)
+
+    def _make_node(idx):
+        nid   = route[idx]
+        name  = graph.nodes[nid].get("name", nid) if nid in graph else nid
+        ntype = graph.nodes[nid].get("type", "aisle") if nid in graph else "aisle"
+
+        prev_pos = _pos(route[idx - 1]) if idx > 0 else None
+        curr_pos = _pos(nid)
+        next_pos = _pos(route[idx + 1]) if idx + 1 < len(route) else None
+
+        direction = _compute_direction(prev_pos, curr_pos, next_pos)
+        items     = node_products.get(nid, [])
+
+        narrative = (
+            "Start at " + name if idx == 0
+            else _DIR_LABEL[direction] + " to reach " + name
+        )
+
+        child = _make_node(idx + 1) if idx + 1 < len(route) else None
+        return {
+            "id":             nid,
+            "label":          name,
+            "type":           ntype,
+            "items":          items,
+            "from_direction": direction,
+            "narrative":      narrative,
+            "children":       [child] if child else [],
+        }
+
+    return _make_node(0)
+
+
+def print_route_tree(tree: dict, indent: int = 0) -> None:
+    """Print the route tree with ASCII lines and direction arrows."""
+    direction = tree.get("from_direction", "ST")
+    arrow     = _DIR_ARROW.get(direction, "|")
+    name      = tree["label"]
+    narrative = tree["narrative"]
+    items     = tree.get("items", [])
+
+    prefix = "  " * indent
+    if indent == 0:
+        print(f"  [{name}]  {narrative}")
+    else:
+        print(f"{prefix}{arrow}-- [{name}]  {narrative}")
+
+    for item in items:
+        print(f"{'  ' * (indent + 1)}   • {item}")
+
+    for child in tree.get("children", []):
+        print_route_tree(child, indent + 1)
+
+
+# ---------------------------------------------------------------------------
 # Core navigation
 # ---------------------------------------------------------------------------
 
@@ -133,6 +226,23 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
         winner     = "Dijkstra In-Order"
 
     print(f"  Winner  : {winner} (saving {abs(cost_1 - cost_2):.0f} steps)\n")
+
+    # --- build + print route tree ---
+    full_route_for_tree = [DEFAULT_START] + best_order + ["checkout_1", "exit"]
+    tree = build_route_tree(graph, full_route_for_tree, node_products)
+
+    print("=" * 58)
+    print("  NAVIGATION TREE")
+    print("=" * 58)
+    print_route_tree(tree)
+    print("=" * 58)
+    print()
+
+    import json as _json
+    tree_path = os.path.join(os.path.dirname(__file__), "..", "data", "route_tree.json")
+    with open(tree_path, "w") as _f:
+        _json.dump(tree, _f, indent=2)
+    print(f"  Tree saved -> {tree_path}\n")
 
     # Rebuild resolved list in best order
     from tools.minimap import print_minimap
@@ -202,6 +312,7 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
             path=path_steps,
             title=f"WayfinderAI | {winner} | {len(best_order)} stops",
             save_path=MAP_OUT,
+            tree=tree,
         )
         print(f"\n  Map saved -> {MAP_OUT}")
 

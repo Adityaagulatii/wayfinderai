@@ -16,24 +16,24 @@ _POS_OVERRIDE: dict[str, tuple[int, int]] = {
     "9":  (54, 5),
 }
 
-# Short 2-char label for each node
+# Aisle sign code label for each node (A+number format)
 _LABEL = {
     "entrance_left":  "EN", "entrance_right": "ER",
     "exit":           "EX",
     "checkout_1":     "C1", "checkout_2":     "C2", "checkout_3": "C3",
-    "100": "DY", "34": "YG", "101": "MT",
-    "152": "BK",
-    "1":   " 1", "2":  " 2", "3":  " 3", "4":  " 4",
-    "5":   " 5", "6":  " 6", "12": "12", "22": "22", "9":  " 9",
-    "8":   " 8", "40": "40", "42": "42", "11": "11",
-    "18":  "18", "16": "16", "7":  " 7", "447":"DL",
-    "105": "GR", "351":"FR", "352":"VG",
-    "0":   " 0",
-    "cleaning": "CL", "vitamins": "VT", "pharmacy": "PH",
+    "100": "A100", "34": "A34", "101": "A101",
+    "152": "A152",
+    "1":   "A1",  "2":  "A2",  "3":  "A3",  "4":  "A4",
+    "5":   "A5",  "6":  "A6",  "12": "A12", "22": "A22", "9":  "A9",
+    "8":   "A8",  "40": "A40", "42": "A42", "11": "A11",
+    "18":  "A18", "16": "A16", "7":  "A7",  "447":"A447",
+    "105": "A105", "351":"A351", "352":"A352",
+    "0":   "A0",
+    "cleaning": "A13", "vitamins": "A14", "pharmacy": "A15",
 }
 
 # Legend for the bottom of the map
-_LEGEND = "[XX] current   (XX) path   .XX. upcoming   -XX- visited"
+_LEGEND = "[A2] current   (A2) on-path   .A2. upcoming   -A2- visited"
 
 
 def _to_grid(x: float, y: float) -> tuple[int, int]:
@@ -65,7 +65,10 @@ def render(
     path_set = set(path_nodes)
 
     for node_id, (x, y) in POSITIONS.items():
-        label = _LABEL.get(node_id, node_id[:2].upper())
+        if node_id not in _LABEL:
+            label = f"A{node_id}" if node_id.isdigit() else node_id[:3].upper()
+        else:
+            label = _LABEL[node_id]
         if node_id in _POS_OVERRIDE:
             col, row = _POS_OVERRIDE[node_id]
         else:
@@ -82,8 +85,8 @@ def render(
         else:
             marker = f" {label} "          # background node
 
-        # Write 4 chars into the grid
-        for i, ch in enumerate(marker[:4]):
+        # Write up to 6 chars into the grid (labels can be A100, A105 etc.)
+        for i, ch in enumerate(marker[:6]):
             c = col + i
             if 0 <= c < _W:
                 grid[row][c] = ch
