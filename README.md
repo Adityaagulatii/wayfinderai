@@ -1,5 +1,6 @@
 # WayfinderAI
 
+WayfinderAI helps visually impaired shoppers navigate Kroger stores independently.
 An audio-first, multi-agent indoor navigation system for Kroger grocery stores.
 Built for a hackathon — fully functional, runs locally, uses real Kroger API data.
 
