@@ -365,7 +365,6 @@ def draw_minimap(frame, navigator):
     frame[y1:y1+mh, x1:x1+mw] = blended
     return frame
 
-# ── Draw overlay ───────────────────────────────────────────────────────────
 def draw_overlay(frame, ocr_results, navigator, detected):
     h, w = frame.shape[:2]
 
