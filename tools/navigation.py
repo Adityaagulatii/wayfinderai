@@ -9,8 +9,8 @@ Nodes use real Kroger API aisle numbers; items per node from batch API discovery
   [152 Bakery] [Row A: 1,2,3,4,5,6,22,9] │            [exit]
                [Row B: 8,40,42,11,18,7]   │
   [0]  [105 Greens][351 Fruit][352 Veg]   │
-   │                                      │
-[entrance_left]                  [entrance_right]
+                     │
+                 [entrance]
 """
 import json
 import networkx as nx
@@ -18,63 +18,56 @@ import networkx as nx
 # 2D positions for visualizer (x=left–right, y=bottom to top)
 # Entrances at y=-0.8, store floor y=0.5–4.0, checkouts+exit at x=11.0
 POSITIONS = {
-    # Entrances — bottom of store
-    "entrance_left":  (0.5,  -0.8),
-    "entrance_right": (9.5,  -0.8),
-    # Back refrigerated wall (y=4.0)
-    "100": (1.5, 4.0),
-    "34":  (4.5, 4.0),
-    "101": (7.5, 4.0),
+    # Entrance — bottom-center of store
+    "entrance": (5.0, -1.0),
+    # Back refrigerated wall (y=4.5)
+    "100": (1.5, 4.5),
+    "34":  (4.5, 4.5),
+    "101": (8.0, 4.5),
     # Bakery — left side, mid-height
-    "152": (0.5, 3.0),
-    # Center aisles — Row A (y=2.5)
-    "1":   (1.5, 2.5),
-    "2":   (2.5, 2.5),
-    "3":   (3.5, 2.5),
-    "4":   (4.5, 2.5),
-    "5":   (5.5, 2.5),
-    "6":   (6.5, 2.5),
-    "12":  (7.5, 2.5),
-    "22":  (8.0, 2.5),
-    "9":   (8.5, 2.5),
-    # Center aisles — Row B (y=1.5)
-    "8":   (1.5, 1.5),
-    "40":  (2.5, 1.5),
-    "42":  (3.5, 1.5),
-    "11":  (4.5, 1.5),
-    "18":  (5.5, 1.5),
-    "16":  (6.5, 1.5),
-    "7":   (7.5, 1.5),
-    # Deli Fresh — near produce/right wall
-    "447": (9.5, 1.5),
-    # Cleaning, Vitamins, Pharmacy — left wall (x=0.5, y=1.5 to 3.0)
-    "cleaning": (0.5, 1.5),
-    "vitamins":  (0.5, 2.5),
-    "pharmacy":  (0.5, 3.5),
-    # Produce section (front-right, y=0.5)
-    "105": (6.5, 0.5),
-    "351": (7.5, 0.5),
-    "352": (8.5, 0.5),
+    "152": (0.5, 3.5),
+    # Center aisles — Row A (y=3.0), evenly spaced x=1..9
+    "1":   (1.5, 3.0),
+    "2":   (2.5, 3.0),
+    "3":   (3.5, 3.0),
+    "4":   (4.5, 3.0),
+    "5":   (5.5, 3.0),
+    "6":   (6.5, 3.0),
+    "12":  (7.5, 3.0),
+    "22":  (8.5, 3.0),
+    "9":   (9.5, 3.0),
+    # Center aisles — Row B (y=2.0), evenly spaced
+    "8":   (1.5, 2.0),
+    "40":  (2.5, 2.0),
+    "42":  (3.5, 2.0),
+    "11":  (4.5, 2.0),
+    "18":  (5.5, 2.0),
+    "16":  (6.5, 2.0),
+    "7":   (7.5, 2.0),
+    # Deli Fresh
+    "447": (9.5, 2.0),
+    # Cleaning, Vitamins, Pharmacy — left wall
+    "cleaning": (0.5, 2.0),
+    "vitamins":  (0.5, 3.0),
+    "pharmacy":  (0.5, 4.0),
+    # Produce section (front-right, y=1.0)
+    "105": (6.5, 1.0),
+    "351": (7.5, 1.0),
+    "352": (8.5, 1.0),
     # Front perimeter (front-left)
-    "0":   (1.5, 0.5),
-    # Checkouts — top-right column
-    "checkout_1": (11.0, 2.0),
-    "checkout_2": (11.0, 3.0),
-    "checkout_3": (11.0, 4.0),
-    # Exit
-    "exit":       (11.0, 5.0),
+    "0":   (2.0, 1.0),
+    # Checkout + Exit — far right
+    "checkout": (12.0, 3.5),
+    "exit":     (12.0, 5.0),
 }
 
 # Default start node for all navigation
-DEFAULT_START = "entrance_left"
+DEFAULT_START = "entrance"
 
 # Sensory audio descriptions
 _AUDIO = {
-    "entrance_left":  "Main entrance, left side. Shopping carts on your right. Store opens ahead of you.",
-    "entrance_right": "Side entrance, right side. Produce section directly ahead.",
-    "checkout_1":     "Checkout lane 1 — conveyor belt, cashier ahead. Place items on the belt.",
-    "checkout_2":     "Checkout lane 2 — self-checkout available to your right.",
-    "checkout_3":     "Checkout lane 3 — express lane, 15 items or fewer.",
+    "entrance": "Main entrance. Shopping carts on your left. Store opens ahead of you.",
+    "checkout": "Checkout — conveyor belt lanes ahead. Place items on the belt and proceed to exit.",
     "exit":           "Exit — sliding doors ahead. Thank you for shopping at Kroger.",
     "0":   "Front Perimeter — impulse buys, candy, and mixed goods near the entrance.",
     "1":   "Aisle 1 — Dairy and Bakery. Butter and cheese on the left, bread and tea on the right.",
@@ -162,19 +155,16 @@ _EDGES = [
     ("pharmacy",  "152",      1),
     ("cleaning",  "8",        1),
     ("cleaning",  "0",        1),
-    # Entrances
-    ("entrance_left",  "0",        1),
-    ("entrance_left",  "cleaning", 2),
-    ("entrance_left",  "152",      2),
-    ("entrance_right", "352", 1),
-    ("entrance_right", "105", 1),
-    # Checkouts (top-right) — connect from aisle 9, 447, and meat wall
-    ("9",          "checkout_1", 1),
-    ("447",        "checkout_1", 2),
-    ("101",        "checkout_1", 2),
-    ("checkout_1", "checkout_2", 1),
-    ("checkout_2", "checkout_3", 1),
-    ("checkout_3", "exit",       1),
+    # Entrance — connects to front perimeter, produce, and left-wall
+    ("entrance", "0",        1),
+    ("entrance", "105",      1),
+    ("entrance", "351",      2),
+    ("entrance", "cleaning", 3),
+    # Checkout (top-right) — connect from aisle 9, 447, and meat wall
+    ("9",        "checkout", 1),
+    ("447",      "checkout", 2),
+    ("101",      "checkout", 2),
+    ("checkout", "exit",     1),
 ]
 
 

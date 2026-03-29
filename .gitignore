@@ -14,3 +14,15 @@ __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# Vite build output
+dist/
+**/dist/
+
+# Logs
+*.log
+uvicorn*.log

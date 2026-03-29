@@ -397,11 +397,8 @@ NODE_MAP: dict[str, dict] = {
         ],
     },
     # ── Infrastructure ──────────────────────────────────────────────────────
-    "entrance_left":  {"name": "Entrance (Left)",           "items": []},
-    "entrance_right": {"name": "Entrance (Right)",          "items": []},
-    "checkout_1":     {"name": "Checkout Lane 1",           "items": []},
-    "checkout_2":     {"name": "Checkout Lane 2",           "items": []},
-    "checkout_3":     {"name": "Checkout Lane 3 (Express)", "items": []},
+    "entrance": {"name": "Entrance", "items": []},
+    "checkout": {"name": "Checkout", "items": []},
     "exit":           {"name": "Exit",                      "items": []},
 }
 

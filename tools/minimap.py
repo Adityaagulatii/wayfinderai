@@ -18,9 +18,9 @@ _POS_OVERRIDE: dict[str, tuple[int, int]] = {
 
 # Aisle sign code label for each node (A+number format)
 _LABEL = {
-    "entrance_left":  "EN", "entrance_right": "ER",
+    "entrance": "EN",
     "exit":           "EX",
-    "checkout_1":     "C1", "checkout_2":     "C2", "checkout_3": "C3",
+    "checkout": "CHK",
     "100": "A100", "34": "A34", "101": "A101",
     "152": "A152",
     "1":   "A1",  "2":  "A2",  "3":  "A3",  "4":  "A4",

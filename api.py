@@ -15,8 +15,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 
-from tools.kroger import find_nearest_store, get_departments, search_product, CINCINNATI_ZIP
+from tools.kroger import find_nearest_store, get_departments, search_product, CINCINNATI_ZIP, NODE_MAP
 from tools.navigation import build_graph, find_path, POSITIONS, DEFAULT_START
+
+_DIR_LABEL = {"ST": "Go straight ahead", "TL": "Turn left", "TR": "Turn right"}
+_DIR_ARROW = {"ST": "↑", "TL": "↰", "TR": "↱"}
+
+def _compute_direction(prev_id, curr_id, next_id) -> str:
+    def pos(nid):
+        p = POSITIONS.get(nid)
+        return p if p else (5.0, 2.0)
+    if not prev_id or not next_id:
+        return "ST"
+    px, py = pos(prev_id); cx, cy = pos(curr_id); nx, ny = pos(next_id)
+    cross = (cx - px) * (ny - cy) - (cy - py) * (nx - cx)
+    if abs(cross) < 0.05: return "ST"
+    return "TL" if cross > 0 else "TR"
 import networkx as nx
 
 app = FastAPI()
@@ -52,9 +66,46 @@ def get_map():
         })
     edges = [{"from": u, "to": v} for u, v in _graph.edges()]
     return {
-        "nodes": nodes,
-        "edges": edges,
-        "store": _store["name"],
+        "nodes":   nodes,
+        "edges":   edges,
+        "store":   _store["name"],
+        "address": _store.get("address", ""),
+    }
+
+
+# ── POST /extract ─────────────────────────────────────────────────────────────
+# Agent 0 — natural language → grocery list
+
+class ExtractRequest(BaseModel):
+    text: str
+
+@app.post("/extract")
+def extract(req: ExtractRequest):
+    try:
+        from agents.chatbot import extract_ingredients, _build_inventory_block, friendly_response
+        inventory_block, _ = _build_inventory_block()
+        from agents.chatbot import _SYSTEM_TEMPLATE
+        system_prompt = _SYSTEM_TEMPLATE.format(inventory_block=inventory_block)
+        ingredients = extract_ingredients(req.text, system_prompt)
+        intro = friendly_response(req.text, ingredients)
+        return {"ingredients": ingredients, "intro": intro, "request": req.text}
+    except Exception as e:
+        return {"ingredients": [], "intro": "", "error": str(e)}
+
+
+# ── GET /aisle/{node_id} ──────────────────────────────────────────────────────
+# Returns items for a specific aisle node
+
+@app.get("/aisle/{node_id}")
+def get_aisle(node_id: str):
+    node_data = NODE_MAP.get(node_id, {})
+    items = node_data.get("items", [])
+    graph_data = _graph.nodes.get(node_id, {})
+    return {
+        "id":    node_id,
+        "name":  graph_data.get("name", node_data.get("name", node_id)),
+        "audio": graph_data.get("audio", ""),
+        "items": [{"product": i[0], "side": i[1], "shelf": i[2]} for i in items],
     }
 
 
@@ -98,34 +149,52 @@ def navigate(req: NavRequest):
 
     # Build full path + directions
     full_path, directions, current = [DEFAULT_START], [], DEFAULT_START
-    for target in ordered:
+    total = len(ordered) + 1  # +1 for checkout
+    for step_num, target in enumerate(ordered, 1):
         try:
             seg = find_path(_graph, current, target)
-            full_path.extend([s["node_id"] for s in seg[1:]])
+            seg_ids = [s["node_id"] for s in seg]
+            full_path.extend(seg_ids[1:])
+            # Direction at the target node using real geometry
+            prev_id = seg_ids[-2] if len(seg_ids) >= 2 else current
+            next_stop = ordered[step_num] if step_num < len(ordered) else "checkout"
+            direction = _compute_direction(prev_id, target, next_stop)
             directions.append({
-                "target": target,
-                "name":   _graph.nodes[target].get("name", target),
-                "items":  node_products[target],
-                "walk":   [s["name"] for s in seg[1:]],
-                "audio":  _graph.nodes[target].get("audio", ""),
+                "step":      step_num,
+                "total":     total,
+                "target":    target,
+                "name":      _graph.nodes[target].get("name", target),
+                "items":     node_products[target],
+                "walk":      [s["name"] for s in seg[1:]],
+                "audio":     _graph.nodes[target].get("audio", ""),
+                "direction": direction,
+                "dir_label": _DIR_LABEL[direction],
+                "dir_arrow": _DIR_ARROW[direction],
             })
             current = target
         except:
-            directions.append({"target": target, "name": target,
-                                "items": node_products[target], "walk": [], "audio": ""})
+            directions.append({
+                "step": step_num, "total": total,
+                "target": target, "name": target,
+                "items": node_products[target], "walk": [], "audio": "",
+                "direction": "ST", "dir_label": "Go straight ahead", "dir_arrow": "↑",
+            })
 
     # Always end at checkout → exit
     try:
-        seg = find_path(_graph, current, "checkout_1")
+        seg = find_path(_graph, current, "checkout")
         full_path.extend([s["node_id"] for s in seg[1:]])
         directions.append({
-            "target": "checkout_1",
-            "name":   "Checkout & Exit",
-            "items":  ["Proceed to checkout lane 1, then exit."],
-            "walk":   [s["name"] for s in seg[1:]],
-            "audio":  _graph.nodes["checkout_1"].get("audio", ""),
+            "step":      total,
+            "total":     total,
+            "target":    "checkout",
+            "name":      "Checkout & Exit",
+            "items":     ["Place items on the belt and proceed to exit."],
+            "walk":      [s["name"] for s in seg[1:]],
+            "audio":     _graph.nodes["checkout"].get("audio", ""),
+            "direction": "ST", "dir_label": "Go straight ahead", "dir_arrow": "↑",
         })
-        full_path.extend(["checkout_2", "checkout_3", "exit"])
+        full_path.append("exit")
     except:
         pass
 
@@ -176,3 +245,47 @@ async def scan(product: str = Form(...), file: UploadFile = File(...)):
 
     except Exception as e:
         return {"found": False, "spoken": str(e)}
+
+
+# ── POST /ocr ─────────────────────────────────────────────────────────────────
+# Teammate test: upload a photo of an aisle sign → returns detected aisle code
+
+@app.post("/ocr")
+async def ocr_test(file: UploadFile = File(...)):
+    try:
+        import easyocr, re, cv2
+        contents = await file.read()
+        arr   = np.frombuffer(contents, np.uint8)
+        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        small = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+
+        reader  = easyocr.Reader(["en"], gpu=False, verbose=False)
+        results = reader.readtext(small, allowlist="A0123456789")
+
+        _AISLE_RE = re.compile(r'\bA\s*(\d{1,2})\b', re.IGNORECASE)
+        detections = []
+        matched_node = None
+
+        for (bbox, text, prob) in results:
+            if prob < 0.25:
+                continue
+            detections.append({"text": text, "confidence": round(prob, 2)})
+            m = _AISLE_RE.search(text)
+            if m:
+                code = "A" + m.group(1)
+                node_data = _graph.nodes.get(m.group(1), {})
+                matched_node = {
+                    "code":     code,
+                    "node_id":  m.group(1),
+                    "aisle":    node_data.get("name", code),
+                }
+
+        return {
+            "detections":  detections,
+            "matched":     matched_node,
+            "raw_texts":   [d["text"] for d in detections],
+            "status":      "matched" if matched_node else "no_aisle_sign_found",
+        }
+
+    except Exception as e:
+        return {"error": str(e), "status": "error"}

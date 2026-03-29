@@ -35,7 +35,7 @@ MAP_OUT    = os.path.join(os.path.dirname(__file__), "..", "data", "store_map.pn
 
 def _path_cost(graph: nx.DiGraph, ordered_stops: list[str]) -> float:
     """Sum of Dijkstra weights for entrance -> stop1 -> stop2 -> ... -> checkout."""
-    nodes = [DEFAULT_START] + ordered_stops + ["checkout_1"]
+    nodes = [DEFAULT_START] + ordered_stops + ["checkout"]
     total = 0.0
     for a, b in zip(nodes[:-1], nodes[1:]):
         try:
@@ -231,7 +231,7 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
     print(f"  Winner  : {winner} (saving {abs(cost_1 - cost_2):.0f} steps)\n")
 
     # --- build + print route tree ---
-    full_route_for_tree = [DEFAULT_START] + best_order + ["checkout_1", "exit"]
+    full_route_for_tree = [DEFAULT_START] + best_order + ["checkout", "exit"]
     tree = build_route_tree(graph, full_route_for_tree, node_products)
 
     print("=" * 58)
@@ -348,20 +348,20 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
     )
     speak(checkout_msg)
     try:
-        seg = find_path(graph, current, "checkout_1")
+        seg = find_path(graph, current, "checkout")
         full_path_nodes.extend([s["node_id"] for s in seg[1:]])
         hops = [s["name"] for s in seg[1:]]
         if hops:
             print(f"         Walk : {' -> '.join(hops)}")
     except Exception:
         pass
-    for lane in ["checkout_1", "checkout_2", "checkout_3", "exit"]:
+    for lane in ["checkout", "checkout", "checkout", "exit"]:
         if lane not in full_path_nodes:
             full_path_nodes.append(lane)
 
     print("         Checkout Lane 1 -> Lane 2 -> Lane 3 (Express) -> Exit")
     print()
-    print_minimap(full_path_nodes, "exit", visited + ["checkout_1", "checkout_2", "checkout_3", "exit"], [])
+    print_minimap(full_path_nodes, "exit", visited + ["checkout", "checkout", "checkout", "exit"], [])
     print("=" * 58)
     print("  Happy shopping!")
     print("=" * 58)
@@ -383,7 +383,7 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
     last_route_path = os.path.join(os.path.dirname(__file__), "..", "data", "last_route.json")
     with open(last_route_path, "w") as _f:
         _json.dump({
-            "route":     ["entrance_left"] + best_order + ["checkout_1", "exit"],
+            "route":     ["entrance"] + best_order + ["checkout", "exit"],
             "algorithm": winner,
             "store":     store["name"],
         }, _f, indent=2)

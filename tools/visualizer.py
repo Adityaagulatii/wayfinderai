@@ -71,11 +71,8 @@ _SIGN_CODE = {
     "cleaning":      "A13",
     "vitamins":      "A14",
     "pharmacy":      "A15",
-    "entrance_left":  "ENT",
-    "entrance_right": "ENT",
-    "checkout_1":     "C1",
-    "checkout_2":     "C2",
-    "checkout_3":     "C3",
+    "entrance": "ENT",
+    "checkout": "CHK",
     "exit":           "EXT",
 }
 
@@ -387,7 +384,7 @@ def draw(graph: nx.DiGraph, path: list[dict] | None = None,
 if __name__ == "__main__":
     graph = load(GRAPH_PATH)
 
-    from_node = sys.argv[1] if len(sys.argv) > 1 else "entrance_left"
+    from_node = sys.argv[1] if len(sys.argv) > 1 else "entrance"
     to_node   = sys.argv[2] if len(sys.argv) > 2 else "exit"
 
     path = find_path(graph, from_node, to_node)

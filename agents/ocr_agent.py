@@ -236,7 +236,7 @@ def select_route():
             choice = int(input("\nEnter number: ")) - 1
             if 0 <= choice < len(dest_list):
                 dest  = dest_list[choice]
-                route = ["entrance_left", dest, "checkout_1", "exit"]
+                route = ["entrance", dest, "checkout", "exit"]
                 print(f"\nRoute: Entrance -> {STORE_NODES[dest]['name']} -> Checkout -> Exit")
                 return route
             else:
@@ -371,10 +371,8 @@ def draw_minimap(frame, navigator):
         # Show aisle sign code (A2, A13, ENT, C1...) not full name
         if node.isdigit():
             sign = f"A{node}"
-        elif node == "entrance_left":
+        elif node == "entrance":
             sign = "ENT"
-        elif node == "entrance_right":
-            sign = "ENT-R"
         elif node == "exit":
             sign = "EXT"
         elif "checkout" in node:
@@ -534,8 +532,8 @@ def test_image(image_path: str):
 
     # --- Show annotated image ---
     nav_dummy = type("N", (), {
-        "route": ["entrance_left"], "current_step": 0,
-        "current_position": "entrance_left", "completed": False,
+        "route": ["entrance"], "current_step": 0,
+        "current_position": "entrance", "completed": False,
         "last_instruction": "Test mode.", "get_status": lambda s: ("Test mode", (255,255,0))
     })()
     frame = draw_overlay(frame, ocr_results, nav_dummy, ocr_node, yolo_results)
@@ -652,7 +650,7 @@ def main():
         if ord("0") <= key <= ord("9"):
             sim_node = chr(key)                      # "0"-"9"
         elif key == ord("c"):
-            sim_node = "checkout_1"
+            sim_node = "checkout"
         elif key == ord("e"):
             sim_node = "exit"
         elif key == ord("p"):
