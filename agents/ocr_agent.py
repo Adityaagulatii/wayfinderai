@@ -10,6 +10,8 @@ from ultralytics import YOLO
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from tools.voice import speak, listen, beep, narrate
+
 # ── Config ─────────────────────────────────────────────────────────────────
 GRAPH_PATH     = os.path.join(os.path.dirname(__file__), "..", "data", "store_graph.json")
 SIGN_MAP_PATH  = os.path.join(os.path.dirname(__file__), "..", "data", "sign_map.json")
@@ -243,6 +245,29 @@ def select_route():
             print("Invalid input")
 
 # ── Navigator ──────────────────────────────────────────────────────────────
+def _node_pos(node_id: str) -> tuple[float, float]:
+    """Return (x, y) position of a node from STORE_NODES."""
+    n = STORE_NODES.get(node_id, {})
+    return (float(n.get("x", 5.0)), float(n.get("y", 2.0)))
+
+
+def _compute_turn(prev_id: str, curr_id: str, next_id: str) -> str:
+    """Real geometry: ST / TL / TR using 2D cross product of node positions."""
+    px, py = _node_pos(prev_id)
+    cx, cy = _node_pos(curr_id)
+    nx, ny = _node_pos(next_id)
+    dx1, dy1 = cx - px, cy - py
+    dx2, dy2 = nx - cx, ny - cy
+    cross = dx1 * dy2 - dy1 * dx2
+    if abs(cross) < 0.05:
+        return "ST"
+    return "TL" if cross > 0 else "TR"
+
+
+_TURN_SPOKEN = {"ST": "go straight ahead", "TL": "turn left", "TR": "turn right"}
+_TURN_CUE    = {"ST": "straight",          "TL": "left",      "TR": "right"}
+
+
 class Navigator:
     def __init__(self, route):
         self.route            = route
@@ -267,20 +292,43 @@ class Navigator:
                 self.current_position = detected_node
 
                 if self.current_step + 1 < len(self.route):
-                    upcoming    = self.route[self.current_step + 1]
-                    progress    = f"{self.current_step}/{len(self.route)-1}"
+                    upcoming      = self.route[self.current_step + 1]
+                    progress      = f"{self.current_step}/{len(self.route)-1}"
+                    aisle_name    = STORE_NODES.get(detected_node, {}).get("name", detected_node)
+                    upcoming_name = STORE_NODES.get(upcoming, {}).get("name", upcoming)
+                    audio_hint    = STORE_NODES.get(detected_node, {}).get("audio", "")
+
+                    # Real geometry: compute turn direction to NEXT stop
+                    prev_node = self.route[self.current_step - 1] if self.current_step > 0 else detected_node
+                    turn      = _compute_turn(prev_node, detected_node, upcoming)
+                    dir_word  = _TURN_SPOKEN[turn]
+                    beep(_TURN_CUE[turn])
+
                     print(f"\n{'='*50}")
-                    print(f"Confirmed: {STORE_NODES.get(detected_node, {}).get('name', detected_node)}")
-                    print("Generating instruction...")
-                    instruction = get_llama_instruction(detected_node, upcoming, progress)
-                    self.last_instruction = instruction
-                    print(f"-> {instruction}")
+                    print(f"Confirmed: {aisle_name}  |  Next: {dir_word} to {upcoming_name}")
+                    beep("arrive")
+                    confirmed_msg = narrate(
+                        f"Shopper arrived at {aisle_name}. Audio hint: {audio_hint}. "
+                        f"Geometrically computed direction to next stop {upcoming_name}: {dir_word} — use this exactly. "
+                        f"Progress: {progress}.",
+                        f"Confirm arrival at {aisle_name}, give the shelf hint, "
+                        f"then tell them to {dir_word} to reach {upcoming_name}."
+                    )
+                    self.last_instruction = confirmed_msg
+                    print(f"-> {confirmed_msg}")
                     print(f"{'='*50}\n")
+                    speak(confirmed_msg, block=False)
                 else:
-                    self.completed        = True
+                    self.completed = True
                     dest = STORE_NODES.get(self.route[-1], {}).get("name", self.route[-1])
-                    self.last_instruction = f"You have arrived at {dest}! Happy shopping."
-                    print(self.last_instruction)
+                    final_msg = narrate(
+                        f"Shopper has reached their final destination: {dest}.",
+                        "Congratulate them warmly and tell them they have everything they need."
+                    )
+                    self.last_instruction = final_msg
+                    print(final_msg)
+                    beep("found")
+                    speak(final_msg, block=False)
 
     def get_status(self):
         curr = STORE_NODES.get(self.current_position, {}).get("name", self.current_position)
@@ -558,6 +606,7 @@ def main():
             if node:
                 node_name = STORE_NODES.get(node, {}).get("name", node)
                 print(f"  => OCR MATCHED: '{text}' -> {node} ({node_name})  conf={conf:.2f}")
+                beep("detect")
                 last_matched = node
                 yolo_results = []          # clear YOLO — OCR won
                 nav.update(node)
@@ -569,6 +618,12 @@ def main():
                 if yolo_node:
                     node_name = STORE_NODES.get(yolo_node, {}).get("name", yolo_node)
                     print(f"  => YOLO MATCHED: '{yolo_cls}' -> {yolo_node} ({node_name})  conf={yolo_conf:.2f}")
+                    beep("detect")
+                    yolo_msg = narrate(
+                        f"Camera detected {yolo_cls} nearby. This product is in {node_name}.",
+                        "Tell the shopper what product was detected and that they may be in the right area."
+                    )
+                    speak(yolo_msg, block=False)
                     last_matched = yolo_node
                     nav.update(yolo_node)
                 else:

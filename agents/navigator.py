@@ -17,6 +17,8 @@ import networkx as nx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from tools.voice import speak, beep, narrate
+
 from tools.kroger import (
     search_product, find_nearest_store, get_departments, CINCINNATI_ZIP,
 )
@@ -203,6 +205,7 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
 
     if not_found:
         print(f"  Not found (ask staff): {', '.join(not_found)}\n")
+        speak(f"I couldn't find {', '.join(not_found)} in our system. Please ask a store employee for help.")
 
     if not node_products:
         print("  Nothing to navigate to.")
@@ -258,25 +261,78 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
     visited  = [DEFAULT_START]
     remaining = list(best_order)        # shrinks as we go
 
+    # Build node_id -> from_direction lookup from the computed route tree
+    _dir_map: dict[str, str] = {}
+    def _extract_dirs(node):
+        if node:
+            _dir_map[node["id"]] = node.get("from_direction", "ST")
+            for child in node.get("children", []):
+                _extract_dirs(child)
+    _extract_dirs(tree)
+
+    _DIR_SPOKEN = {
+        "ST": "go straight ahead",
+        "TL": "turn left",
+        "TR": "turn right",
+    }
+    _DIR_CUE = {"ST": "straight", "TL": "left", "TR": "right"}
+
+    # Announce navigation start
+    beep("start")
+    start_msg = narrate(
+        f"Starting navigation for {len(best_order)} stops using {winner} route.",
+        "Tell the shopper navigation is starting and ask them to follow your voice."
+    )
+    speak(start_msg)
+
     # Show minimap at start
     print_minimap(full_path_nodes, current, visited, remaining)
 
     for step_num, target_node in enumerate(best_order, 1):
         spoken_lines = node_products[target_node]
+        aisle_name   = graph.nodes[target_node].get("name", target_node) if target_node in graph else target_node
+        audio_hint   = graph.nodes[target_node].get("audio", "") if target_node in graph else ""
+        items_str    = ", ".join(spoken_lines)
+
+        # Real computed direction for this node
+        direction     = _dir_map.get(target_node, "ST")
+        dir_spoken    = _DIR_SPOKEN[direction]
+        cue           = _DIR_CUE[direction]
+
         for spoken in spoken_lines:
             print(f"  [{step_num}/{total}] {spoken}")
+
         try:
             seg = find_path(graph, current, target_node)
             full_path_nodes.extend([s["node_id"] for s in seg[1:]])
             hops = [s["name"] for s in seg[1:]]
             if hops:
                 print(f"         Walk : {' -> '.join(hops)}")
-            audio = graph.nodes[target_node].get("audio", "")
-            if audio:
-                print(f"         Audio: {audio}")
+
+            # Direction beep — real geometry
+            beep(cue)
+            print(f"         Dir  : {direction} ({dir_spoken})")
+
+            if audio_hint:
+                print(f"         Audio: {audio_hint}")
+
+            # LLM narration — passes REAL direction so LLM uses it accurately
+            nav_msg = narrate(
+                f"Step {step_num} of {total}. "
+                f"Computed direction: {dir_spoken} — this is geometrically accurate, use it exactly. "
+                f"Destination: {aisle_name}. "
+                f"Walking path: {' then '.join(hops) if hops else 'straight ahead'}. "
+                f"Aisle sensory hint: {audio_hint}. "
+                f"Items to collect: {items_str}.",
+                f"Tell the shopper to {dir_spoken}, walk to {aisle_name}, "
+                f"and where to find each item on the shelf."
+            )
+            print(f"         Voice: {nav_msg}")
+            speak(nav_msg)
+
             current = target_node
             visited.append(target_node)
-            remaining = best_order[step_num:]   # steps not yet visited
+            remaining = best_order[step_num:]
         except Exception as e:
             print(f"         (routing error: {e})")
 
@@ -285,6 +341,12 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
 
     # --- checkout -> exit ---
     print(f"  [{total}/{total}] Proceed to checkout and exit.")
+    beep("arrive")
+    checkout_msg = narrate(
+        "All items collected. Now heading to checkout.",
+        "Tell the shopper all items are collected and guide them to checkout lane 1, then exit."
+    )
+    speak(checkout_msg)
     try:
         seg = find_path(graph, current, "checkout_1")
         full_path_nodes.extend([s["node_id"] for s in seg[1:]])

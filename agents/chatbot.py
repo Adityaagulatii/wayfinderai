@@ -29,6 +29,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from tools.voice import speak, listen, beep
+
 try:
     import ollama
 except ImportError:
@@ -101,6 +103,54 @@ def extract_ingredients(user_request: str, system_prompt: str) -> list[str]:
     return [i.strip().lower() for i in reply.split(",") if i.strip()]
 
 
+def voice_agent_respond(context: str, situation: str) -> str:
+    """
+    LLM-powered voice agent — generates a natural spoken response.
+    Always returns 1-2 sentences, plain text, no markdown.
+    """
+    try:
+        response = ollama.chat(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a friendly voice assistant in a Kroger grocery store helping a shopper. "
+                        "Reply in exactly 1-2 SHORT spoken sentences. "
+                        "No bullet points. No lists. No markdown. No questions about the recipe. "
+                        "Just respond naturally to what happened, as if speaking aloud."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"{context}\n\nYour job now: {situation}",
+                },
+            ],
+        )
+        return response["message"]["content"].strip()
+    except Exception:
+        return situation
+
+
+def friendly_response(user_request: str, final_list: list[str]) -> str:
+    """Generate a short friendly spoken intro for the ingredient list."""
+    items_str = ", ".join(final_list)
+    prompt = f"""The user asked: "{user_request}"
+We found these ingredients at the store: {items_str}
+
+Give a warm, friendly 1-2 sentence response like a helpful grocery assistant.
+Start with something like "Sure!" or "Great choice!" then briefly mention what you found.
+Plain text only, no lists, no bullet points."""
+    try:
+        response = ollama.chat(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response["message"]["content"].strip()
+    except Exception:
+        return f"Sure! Here are the ingredients I found for {user_request}."
+
+
 def filter_to_inventory(items: list[str], known_keywords: set[str]) -> list[str]:
     """
     Safety net: strip anything the LLM invented that isn't in the store.
@@ -149,25 +199,20 @@ def run_cli():
     print(f"  {summary['address']}")
     print(f"  {summary['nodes']} aisles  |  {len(known_keywords)} items in store")
     print("=" * 60)
+    beep("start")
+    speak("Welcome to Kroger.")
 
-    # ── Get request ───────────────────────────────────────────────────────
-    if len(sys.argv) > 1:
-        user_request = " ".join(sys.argv[1:])
-    else:
-        print()
-        print("  Examples:")
-        print('    "carbonara for 4"')
-        print('    "vegan dinner"')
-        print('    "plan my meals for the week"')
-        print('    "I have eggs and cheese, what can I make?"')
-        print('    "game day snacks"')
-        print('    "high protein breakfast"')
-        print()
-        user_request = input("  What would you like to make or buy? ").strip()
-
-    if not user_request:
-        print("No request given. Exiting.")
-        sys.exit(0)
+    # ── Get request — always via voice ───────────────────────────────────
+    print()
+    print("  You can say things like:")
+    print('    "carbonara for 4"  |  "vegan dinner"  |  "game day snacks"')
+    print('    "plan my meals for the week"  |  "high protein breakfast"')
+    print()
+    user_request = ""
+    while not user_request:
+        user_request = listen("What would you like to make or buy?")
+        if not user_request:
+            speak("Let's try again. What would you like to shop for today?")
 
     print()
     print(f"  Request : {user_request}")
@@ -181,7 +226,22 @@ def run_cli():
     if not final_list:
         print("\n  No matching items found in the store for that request.")
         print("  Try being more specific, e.g. 'pasta', 'chicken', 'snacks'.")
+        beep("error")
+        msg = voice_agent_respond(
+            context=f"User asked for '{user_request}' but nothing matched the store inventory.",
+            situation="Apologize and suggest they try a different or more specific request."
+        )
+        speak(msg)
         sys.exit(1)
+
+    # ── LLM voice agent: friendly intro ──────────────────────────────────
+    intro = voice_agent_respond(
+        context=f"User asked for '{user_request}'. Found {len(final_list)} ingredients: {', '.join(final_list)}.",
+        situation="Give a warm friendly 1-2 sentence response about what you found. Be natural."
+    )
+    print()
+    print(f"  {intro}")
+    speak(intro)
 
     # ── Print ingredient list with aisle locations ────────────────────────
     print()
@@ -197,10 +257,32 @@ def run_cli():
         else:
             print(f"  • {item}")
     print("=" * 60)
+    speak("Here are your ingredients: " + ", ".join(final_list) + ".")
     print()
 
+    # ── LLM voice agent: ask if ready ─────────────────────────────────────
+    ready_prompt = voice_agent_respond(
+        context=f"Just listed {len(final_list)} ingredients for '{user_request}'.",
+        situation="Ask the user to let you know when they are ready to start navigation. Keep it short."
+    )
+    print(f"  {ready_prompt}")
+    confirmation = listen(ready_prompt)   # listen() speaks the prompt then waits
+
+    _GO_WORDS = {"yes", "ready", "go", "start", "ok", "okay", "sure", "let's go", "yep", "yeah"}
+    if confirmation and not any(w in confirmation.lower() for w in _GO_WORDS):
+        retry = voice_agent_respond(
+            context="User response was unclear.",
+            situation="Ask again briefly if they are ready to start navigating."
+        )
+        confirmation = listen(retry)
+
     # ── Agent 2: navigate ─────────────────────────────────────────────────
-    print("  Starting navigation (Agent 2)...")
+    go_msg = voice_agent_respond(
+        context=f"Starting navigation for {len(final_list)} items.",
+        situation="Tell the user navigation is starting now. One sentence, energetic."
+    )
+    print(f"\n  {go_msg}")
+    speak(go_msg)
     print()
     from agents.navigator import navigate
     navigate(final_list)

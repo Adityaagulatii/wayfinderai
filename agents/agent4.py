@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from ultralytics import YOLO
 from tools.kroger import NODE_MAP
+from tools.voice import speak, listen, beep, narrate
 
 # ── Build inventory from NODE_MAP ──────────────────────────────────────────
 # INVENTORY: keyword -> (node_id, side, shelf, aisle_name)
@@ -47,7 +48,7 @@ if not PRODUCT:
         node_id, side, shelf, aisle = INVENTORY[kw]
         print(f"  {i+1:3}. {kw:<22}  ({aisle})")
     print()
-    choice = input("Enter item name or number: ").strip().lower()
+    choice = listen("Which product are you looking for? Say its name or number.")
     if choice.isdigit():
         idx = int(choice) - 1
         if 0 <= idx < len(ALL_KEYWORDS):
@@ -69,13 +70,24 @@ if PRODUCT not in INVENTORY:
         print(f"Using: '{PRODUCT}'\n")
     else:
         print(f"\nERROR: '{PRODUCT}' is not in the store inventory.")
-        print("Run without --product to see the full list.")
+        beep("error")
+        err_msg = narrate(
+            f"Product '{PRODUCT}' is not in the store inventory.",
+            "Apologize and suggest the shopper ask a store employee for help."
+        )
+        speak(err_msg)
         sys.exit(1)
 
 node_id, EXPECTED_SIDE, EXPECTED_SHELF, AISLE_NAME = INVENTORY[PRODUCT]
 
 print(f"\nSearching for: '{PRODUCT.upper()}'")
 print(f"Should be in : {AISLE_NAME}  |  {EXPECTED_SIDE}  |  {EXPECTED_SHELF}")
+beep("start")
+search_msg = narrate(
+    f"Looking for {PRODUCT} in {AISLE_NAME}. Expected location: {EXPECTED_SIDE}, {EXPECTED_SHELF}.",
+    "Tell the visually impaired shopper what product you are searching for and how to position the camera."
+)
+speak(search_msg)
 print("-" * 50)
 
 # ── Load YOLO-World, set to only inventory items ───────────────────────────
@@ -132,9 +144,16 @@ while True:
                 row, side = shelf_position(x1, y1, x2, y2, w, h)
                 found_count += 1
                 last_message = f"FOUND: {PRODUCT}  |  {row}, {side}"
-                if found_count >= CONFIRM_FRAMES:
+                if found_count == CONFIRM_FRAMES:   # trigger once on confirmation
                     print(f">>> FOUND: {PRODUCT.upper()}  |  {row}, {side}  (conf {conf:.0%})")
                     print(f"    Expected: {EXPECTED_SHELF}, {EXPECTED_SIDE} in {AISLE_NAME}")
+                    beep("found")
+                    found_msg = narrate(
+                        f"Product {PRODUCT} found. Camera detected it at {row}, {side}. "
+                        f"Expected shelf: {EXPECTED_SHELF}, {EXPECTED_SIDE} in {AISLE_NAME}.",
+                        "Tell the visually impaired shopper exactly where to reach to grab the product using clear spatial directions."
+                    )
+                    speak(found_msg, block=False)
             else:
                 # Other inventory item nearby — gray box
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (160, 160, 160), 1)

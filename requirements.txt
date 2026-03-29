@@ -11,3 +11,8 @@ numpy
 # Admin Agents
 anthropic
 pandas
+# Voice layer (Agent 0-4 accessibility)
+pyttsx3
+SpeechRecognition
+pyaudio
+pygame
