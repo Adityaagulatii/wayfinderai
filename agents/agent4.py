@@ -22,7 +22,6 @@ from ultralytics import YOLO
 from tools.kroger import NODE_MAP
 from tools.voice import speak, listen, beep, narrate
 
-# ── Build inventory from NODE_MAP ──────────────────────────────────────────
 # INVENTORY: keyword -> (node_id, side, shelf, aisle_name)
 INVENTORY: dict[str, tuple[str, str, str, str]] = {}
 for node_id, node_data in NODE_MAP.items():
