@@ -205,6 +205,16 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
         )
         print(f"\n  Map saved -> {MAP_OUT}")
 
+    # Save route for Agent 3 to pick up
+    import json as _json
+    last_route_path = os.path.join(os.path.dirname(__file__), "..", "data", "last_route.json")
+    with open(last_route_path, "w") as _f:
+        _json.dump({
+            "route":     ["entrance_left"] + best_order + ["checkout_1", "exit"],
+            "algorithm": winner,
+            "store":     store["name"],
+        }, _f, indent=2)
+
     return {
         "store":       store["name"],
         "algorithm":   winner,
