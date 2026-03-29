@@ -560,11 +560,6 @@ def main():
     reader = easyocr.Reader(["en"], gpu=True, verbose=False)
     print("OCR ready.")
 
-    print("Loading YOLO-World (open-vocab fallback detector)...")
-    yolo = YOLO("yolov8s-worldv2.pt")
-    yolo.set_classes(list(YOLO_TO_NODE.keys()))
-    print(f"YOLO-World ready. Watching for {len(YOLO_TO_NODE)} grocery classes.")
-
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
         print("Cannot open camera!")
@@ -574,7 +569,6 @@ def main():
     nav          = Navigator(route)
     frame_count  = 0
     ocr_results  = []
-    yolo_results = []
     last_matched = None
 
     while True:
@@ -594,7 +588,6 @@ def main():
             ) for bbox, text, prob in results]
             texts = [(r[1], r[2]) for r in results]
 
-            # ── Terminal scan output ──────────────────────────────────────
             if texts:
                 print(f"[Frame {frame_count}] OCR: {[t for t,_ in texts]}")
             else:
@@ -603,38 +596,14 @@ def main():
             node, text, conf = match_text(texts)
             if node:
                 node_name = STORE_NODES.get(node, {}).get("name", node)
-                print(f"  => OCR MATCHED: '{text}' -> {node} ({node_name})  conf={conf:.2f}")
+                print(f"  => MATCHED: '{text}' -> {node} ({node_name})  conf={conf:.2f}")
                 beep("detect")
                 last_matched = node
-                yolo_results = []          # clear YOLO — OCR won
                 nav.update(node)
             else:
-                # ── OCR found nothing → run YOLO as fallback ──────────────
-                print(f"  => No sign found — running YOLO object detection...")
-                yolo_results = yolo(frame, verbose=False)
-                yolo_node, yolo_cls, yolo_conf = match_yolo(yolo_results)
-                if yolo_node:
-                    node_name = STORE_NODES.get(yolo_node, {}).get("name", yolo_node)
-                    print(f"  => YOLO MATCHED: '{yolo_cls}' -> {yolo_node} ({node_name})  conf={yolo_conf:.2f}")
-                    beep("detect")
-                    yolo_msg = narrate(
-                        f"Camera detected {yolo_cls} nearby. This product is in {node_name}.",
-                        "Tell the shopper what product was detected and that they may be in the right area."
-                    )
-                    speak(yolo_msg, block=False)
-                    last_matched = yolo_node
-                    nav.update(yolo_node)
-                else:
-                    # Print all YOLO detections even if none map to a node
-                    for result in yolo_results:
-                        for box in result.boxes:
-                            cls  = result.names[int(box.cls[0])]
-                            conf_val = float(box.conf[0])
-                            if conf_val > 0.35:
-                                print(f"  YOLO sees: '{cls}'  conf={conf_val:.2f}  (no node match)")
-                    print(f"  => YOLO: nothing matched")
+                print(f"  => No aisle sign detected")
 
-        frame = draw_overlay(frame, ocr_results, nav, last_matched, yolo_results)
+        frame = draw_overlay(frame, ocr_results, nav, last_matched)
         frame = draw_minimap(frame, nav)
         cv2.imshow("WayfinderAI - Agent 3", frame)
 
