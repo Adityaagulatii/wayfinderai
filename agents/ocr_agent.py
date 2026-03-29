@@ -407,7 +407,6 @@ def draw_overlay(frame, ocr_results, navigator, detected):
 
     return frame
 
-# ── Main ───────────────────────────────────────────────────────────────────
 def test_image(image_path: str):
     """
     Test mode: run OCR + YOLO on a single image file and print what was detected.
