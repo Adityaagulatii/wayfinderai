@@ -48,7 +48,6 @@ LAST_ROUTE     = os.path.join(os.path.dirname(__file__), "..", "data", "last_rou
 LOC_FILE       = os.path.join(os.path.dirname(__file__), "..", "data", "current_location.json")
 CAMERA_INDEX   = 0
 
-# ── Load store graph ───────────────────────────────────────────────────────
 with open(GRAPH_PATH) as f:
     _g = json.load(f)
 STORE_NODES = {n["id"]: n for n in _g["nodes"]}
