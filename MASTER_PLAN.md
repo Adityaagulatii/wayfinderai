@@ -191,6 +191,8 @@ POST /ocr        { image }                    → aisle code detected
 
 Any developer can build on top of this: a smart glasses app, a mobile app, a kiosk interface, or a white-label enterprise deployment. The agent pipeline is modular — swap Ollama for GPT-4, swap YOLO-World for a fine-tuned model, swap Kroger for Walmart's API. The architecture is retailer-agnostic by design.
 
+**Integrating a new retailer:** A third-party developer only needs to implement two functions — `find_nearest_store(zip)` returning a store ID and `get_departments(store_id)` returning a list of `{department_id, name}` dicts — and the entire navigation pipeline works unchanged. The `build_graph()` function, all routing algorithms, and the FastAPI endpoints require zero modification to support a new retailer.
+
 ---
 
 ## User Impact
