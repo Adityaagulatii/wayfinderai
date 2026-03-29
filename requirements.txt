@@ -3,3 +3,11 @@ networkx
 matplotlib
 python-dotenv
 ollama
+# Agent 3 — OCR Navigator
+opencv-python
+easyocr
+ultralytics
+numpy
+# Admin Agents
+anthropic
+pandas

@@ -8,16 +8,17 @@ Built for a hackathon — fully functional, runs locally, uses real Kroger API d
 ## How It Works
 
 ```
-Agent 1  →  Agent 0  →  Agent 2
-Store       Chatbot      Navigator
-Builder     (llama3.2)   (Dijkstra + Nearest-Neighbor)
+Agent 1  →  Agent 0  →  Agent 2  →  Agent 3
+Store       Chatbot      Route        Camera
+Builder     (llama3.2)   Optimizer    (EasyOCR + YOLO)
 ```
 
-Three agents run in sequence every shopping session:
+Four agents run in sequence every shopping session:
 
 1. **Agent 1** builds a live navigation graph from the Kroger API
 2. **Agent 0** chats with the user to build a verified grocery list
 3. **Agent 2** finds the fastest route and gives step-by-step directions with a live minimap
+4. **Agent 3** uses the phone camera to read physical aisle signs and confirm the user's real-world location
 
 ---
 
@@ -208,10 +209,65 @@ Get a free Kroger API key at: https://developer.kroger.com
 ollama pull llama3.2
 ```
 
-**4. Run:**
+**4. Run the full pipeline (Agents 1 → 0 → 2):**
 ```bash
 python agents/chatbot.py
 ```
+
+**5. Run Agent 3 — live camera aisle reader (requires webcam):**
+```bash
+python agents/ocr_agent.py
+# Point camera at an aisle sign — reads number, shows direction
+# Press Q to quit
+```
+
+---
+
+## Agent 3 — OCR Aisle Navigator
+
+**File:** `agents/ocr_agent.py`
+
+The real-world "eyes" of the system. Uses the device camera to read physical aisle signs, confirm the user is at the right location, and give live directional guidance.
+
+**What it does:**
+- Opens live camera feed
+- EasyOCR reads text from aisle signs every 10 frames
+- Matches patterns: `AISLE 5`, `A5`, standalone numbers
+- YOLO detects objects in the frame for visual context
+- Determines direction from sign position in frame:
+  - Sign on left → `Turn LEFT`
+  - Sign on right → `Turn RIGHT`
+  - Sign centered → `Go STRAIGHT`
+- Estimates distance from sign height in frame: `Close`, `Keep going`, `Far away`
+- Displays direction overlay on screen + prints to terminal
+
+**Example output:**
+```
+Aisle 3 -> Go STRAIGHT | Keep going
+Aisle 3 -> Go STRAIGHT | You are close!
+```
+
+**Requires:**
+```bash
+pip install opencv-python easyocr ultralytics numpy
+```
+
+---
+
+## Admin Agents
+
+**File:** `agents/admin_agents.py`
+
+A suite of Claude-powered admin tools for store managers to set up and maintain the navigation system.
+
+| Agent | Method | What it does |
+|-------|--------|--------------|
+| Layout Parser | `parse_visual_layout(image_b64)` | Claude Vision reads a floorplan image and extracts a navigation graph as JSON |
+| Product Populator | `process_csv_upload(csv)` | Converts a product CSV into a NetworkX graph |
+| Accessibility Auditor | `run_accessibility_audit(graph)` | Identifies navigation blind spots and suggests audio landmark improvements |
+| Audio Description Generator | `generate_sensory_descriptions(aisle, products)` | Generates rich, sensory-focused audio descriptions for each aisle |
+
+**Requires:** `ANTHROPIC_API_KEY` in `.env`
 
 ---
 
@@ -222,7 +278,9 @@ wayfinderai/
 ├── agents/
 │   ├── store_builder.py   # Agent 1 — builds nav graph from Kroger API
 │   ├── chatbot.py         # Agent 0 — LLM pre-shopping assistant
-│   └── navigator.py       # Agent 2 — dual-algo route optimizer
+│   ├── navigator.py       # Agent 2 — dual-algo route optimizer
+│   ├── ocr_agent.py       # Agent 3 — camera aisle sign reader (EasyOCR + YOLO)
+│   └── admin_agents.py    # Admin suite — layout parser, auditor, audio generator
 ├── tools/
 │   ├── kroger.py          # Kroger API wrapper + NODE_MAP inventory
 │   ├── navigation.py      # NetworkX graph builder + Dijkstra pathfinding
