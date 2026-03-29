@@ -156,7 +156,7 @@ Give a short friendly navigation instruction in 1-2 sentences. Plain text only."
     except Exception:
         return f"Head to {next_name}."
 
-def select_route():
+def select_route() -> list[str]:
     # Auto-load from Agent 2 if available
     if os.path.exists(LAST_ROUTE):
         with open(LAST_ROUTE) as f:
