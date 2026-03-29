@@ -201,7 +201,16 @@ function RoutePreview({ ingredients, mapData, onStart }) {
     try {
       const res  = await fetch(`${API}/navigate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: ingredients }) });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
-      setResult(await res.json());
+      const data = await res.json();
+      setResult(data);
+      if (data.total_price != null) {
+        const u = new SpeechSynthesisUtterance(
+          `Your route is ready. Estimated total: $${data.total_price.toFixed(2)} for ${ingredients.length} ingredients.`
+        );
+        u.lang = "en-US"; u.rate = 1.0;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      }
     } catch (e) { setError(e.message); }
     setLoading(false);
   }
@@ -244,10 +253,27 @@ function RoutePreview({ ingredients, mapData, onStart }) {
                 <span style={{ fontWeight: 600, fontSize: 13, color: "#334155" }}>{d.name}</span>
                 <span style={{ marginLeft: "auto", fontSize: 16 }}>{d.dir_arrow}</span>
               </div>
-              {d.items.map((item, j) => <div key={j} style={{ fontSize: 11, color: "#64748b", paddingLeft: 28 }}>· {item}</div>)}
+              {d.items.map((item, j) => {
+                const priceEntry = d.prices?.find(([name]) => item.toLowerCase().includes(name.toLowerCase()));
+                return (
+                  <div key={j} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", paddingLeft: 28 }}>
+                    <span>· {item}</span>
+                    {priceEntry && <span style={{ color: "#16a34a", fontWeight: 600 }}>${priceEntry[1].toFixed(2)}</span>}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
+
+        {result?.total_price != null && (
+          <div style={{ padding: "10px 16px", background: "#f0fdf4", borderTop: "1px solid #bbf7d0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Estimated Total</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#16a34a" }}>${result.total_price.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
 
         <div style={{ padding: "16px", borderTop: "1px solid #e2e6ea" }}>
           <button onClick={() => onStart(result)} style={{

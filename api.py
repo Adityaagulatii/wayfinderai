@@ -134,6 +134,7 @@ class NavRequest(BaseModel):
 @app.post("/navigate")
 def navigate(req: NavRequest):
     node_products: dict = {}
+    node_prices: dict   = {}   # node_id -> list of (item_name, price)
     not_found = []
 
     for item in req.items:
@@ -143,6 +144,8 @@ def navigate(req: NavRequest):
             continue
         nid = result["aisle_id"]
         node_products.setdefault(nid, []).append(result["spoken"])
+        if result.get("price") is not None:
+            node_prices.setdefault(nid, []).append((item, result["price"]))
 
     if not node_products:
         return {"route": [], "directions": [], "not_found": not_found}
@@ -181,6 +184,7 @@ def navigate(req: NavRequest):
                 "target":    target,
                 "name":      _graph.nodes[target].get("name", target),
                 "items":     node_products[target],
+                "prices":    node_prices.get(target, []),
                 "walk":      [s["name"] for s in seg[1:]],
                 "audio":     _graph.nodes[target].get("audio", ""),
                 "direction": direction,
@@ -220,11 +224,15 @@ def navigate(req: NavRequest):
     with open(_lr, "w") as _f:
         _json.dump({"route": full_path, "store": _store["name"]}, _f)
 
+    all_prices   = [p for pairs in node_prices.values() for _, p in pairs]
+    total_price  = round(sum(all_prices), 2) if all_prices else None
+
     return {
-        "route":      full_path,
-        "directions": directions,
-        "not_found":  not_found,
-        "store":      _store["name"],
+        "route":        full_path,
+        "directions":   directions,
+        "not_found":    not_found,
+        "store":        _store["name"],
+        "total_price":  total_price,
     }
 
 
