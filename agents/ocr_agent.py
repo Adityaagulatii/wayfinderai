@@ -119,7 +119,7 @@ def save_memory(memory: dict) -> None:
 
 memory = load_memory()
 
-def get_llama_instruction(current, next_node, progress):
+def get_llama_instruction(current: str, next_node: str, progress: str) -> str:
     curr_name  = STORE_NODES.get(current,   {}).get("name",  current)
     next_name  = STORE_NODES.get(next_node, {}).get("name",  next_node)
     next_audio = STORE_NODES.get(next_node, {}).get("audio", "")
