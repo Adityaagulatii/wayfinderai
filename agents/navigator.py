@@ -162,11 +162,6 @@ def print_route_tree(tree: dict, indent: int = 0) -> None:
     for child in tree.get("children", []):
         print_route_tree(child, indent + 1)
 
-
-# ---------------------------------------------------------------------------
-# Core navigation
-# ---------------------------------------------------------------------------
-
 def navigate(items: list[str], save_map: bool = True) -> dict:
     """
     Full pipeline: items -> resolved stops -> best route -> directions + map.
