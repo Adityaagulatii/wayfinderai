@@ -114,6 +114,21 @@ def navigate(req: NavRequest):
             directions.append({"target": target, "name": target,
                                 "items": node_products[target], "walk": [], "audio": ""})
 
+    # Always end at checkout → exit
+    try:
+        seg = find_path(_graph, current, "checkout_1")
+        full_path.extend([s["node_id"] for s in seg[1:]])
+        directions.append({
+            "target": "checkout_1",
+            "name":   "Checkout & Exit",
+            "items":  ["Proceed to checkout lane 1, then exit."],
+            "walk":   [s["name"] for s in seg[1:]],
+            "audio":  _graph.nodes["checkout_1"].get("audio", ""),
+        })
+        full_path.extend(["checkout_2", "checkout_3", "exit"])
+    except:
+        pass
+
     return {
         "route":      full_path,
         "directions": directions,
