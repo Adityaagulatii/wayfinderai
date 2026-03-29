@@ -137,6 +137,7 @@ Output: "Pasta found. Middle shelf, left side."
 | EasyOCR fails on blurry sign | Claude Vision fallback at confidence < 0.70; keyboard simulation mode as final fallback |
 | Claude API latency | NetworkX path local first; directions async |
 | Agent 3/4 incomplete | Typed input fallback keeps core demo working |
+| YOLO-World on cluttered shelves | Open-vocabulary detection on dense grocery shelves at hackathon lighting is non-trivial. Mitigation: confidence threshold set to 0.03 (catches low-confidence hits), 3-frame confirmation window prevents false positives, and NODE_MAP text fallback announces expected position if no detection occurs within 10 seconds. |
 
 ---
 
