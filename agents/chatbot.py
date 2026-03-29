@@ -62,7 +62,7 @@ using ONLY items from this store's inventory.
 2. Map EVERY ingredient to the closest matching keyword from STORE INVENTORY above.
 3. If an ingredient has NO match in the store — skip it entirely.
 4. Output ONLY this single line, no explanation, no preamble:
-   READY: item1, item2, item3, ...
+   READY: item1, item2, item3, ..
 """
 
 
