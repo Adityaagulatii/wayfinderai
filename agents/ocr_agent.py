@@ -6,17 +6,49 @@ import numpy as np
 import os
 import re
 import sys
-from ultralytics import YOLO
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tools.voice import speak, listen, beep, narrate
+
+# ── MJPEG stream server (port 8004) — frontend reads this ─────────────────
+_latest_frame = None
+_frame_lock   = threading.Lock()
+STREAM_PORT   = 8004
+
+class _MJPEGHandler(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass          # silence request logs
+    def do_GET(self):
+        if self.path != "/video_feed":
+            self.send_response(404); self.end_headers(); return
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        try:
+            while True:
+                with _frame_lock:
+                    frame = _latest_frame
+                if frame is not None:
+                    self.wfile.write(
+                        b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                    )
+                time.sleep(0.04)            # ~25 fps cap
+        except Exception:
+            pass
+
+def _start_stream():
+    HTTPServer(("0.0.0.0", STREAM_PORT), _MJPEGHandler).serve_forever()
 
 # ── Config ─────────────────────────────────────────────────────────────────
 GRAPH_PATH     = os.path.join(os.path.dirname(__file__), "..", "data", "store_graph.json")
 SIGN_MAP_PATH  = os.path.join(os.path.dirname(__file__), "..", "data", "sign_map.json")
 MEMORY_PATH    = os.path.join(os.path.dirname(__file__), "..", "data", "nav_memory.json")
 LAST_ROUTE     = os.path.join(os.path.dirname(__file__), "..", "data", "last_route.json")
+LOC_FILE       = os.path.join(os.path.dirname(__file__), "..", "data", "current_location.json")
 CAMERA_INDEX   = 0
 
 # ── Load store graph ───────────────────────────────────────────────────────
@@ -24,6 +56,17 @@ with open(GRAPH_PATH) as f:
     _g = json.load(f)
 STORE_NODES = {n["id"]: n for n in _g["nodes"]}
 print(f"Loaded {len(STORE_NODES)} store nodes")
+
+def write_location(node_id: str, code: str, conf: float):
+    """Write detected aisle to shared JSON so the frontend can poll it."""
+    os.makedirs(os.path.dirname(LOC_FILE), exist_ok=True)
+    with open(LOC_FILE, "w") as f:
+        json.dump({
+            "node_id":    node_id,
+            "code":       code,
+            "name":       STORE_NODES.get(node_id, {}).get("name", code),
+            "confidence": round(conf, 2),
+        }, f)
 
 # ── Aisle sign lookup table — built from store graph (numeric nodes only) ──
 # Sign format: A + aisle_number  e.g. A2, A9, A42
@@ -65,94 +108,6 @@ def match_text(texts: list[tuple[str, float]]) -> tuple[str | None, str | None, 
                 return node, text, conf
     return None, None, 0
 
-# ── YOLO-World open-vocab classes → store node ────────────────────────────
-# YOLO-World detects exactly the class names you set — no COCO limit.
-# Keys here become the detection vocabulary passed to model.set_classes().
-YOLO_TO_NODE: dict[str, str] = {
-    # Produce Greens (105)
-    "broccoli":         "105",
-    "lettuce":          "105",
-    "spinach":          "105",
-    "kale":             "105",
-    "cabbage":          "105",
-    # Produce Fruit (351)
-    "banana":           "351",
-    "apple":            "351",
-    "orange":           "351",
-    "grapes":           "351",
-    "strawberry":       "351",
-    "blueberry":        "351",
-    # Produce Vegetables (352)
-    "carrot":           "352",
-    "tomato":           "352",
-    "onion":            "352",
-    "potato":           "352",
-    "pepper":           "352",
-    "garlic":           "352",
-    # Dairy back wall (100)
-    "milk":             "100",
-    "milk carton":      "100",
-    "eggs":             "100",
-    "egg carton":       "100",
-    "butter":           "100",
-    # Meat & Poultry (101)
-    "chicken":          "101",
-    "steak":            "101",
-    "meat":             "101",
-    "sausage":          "101",
-    # Bakery (152)
-    "donut":            "152",
-    "bread loaf":       "152",
-    "bagel":            "152",
-    "croissant":        "152",
-    "muffin":           "152",
-    # Deli (447)
-    "sandwich":         "447",
-    "deli meat":        "447",
-    "hummus":           "447",
-    # Frozen foods (8)
-    "frozen pizza":     "8",
-    "ice cream":        "8",
-    "frozen vegetables":"8",
-    # Snacks (5)
-    "chips":            "5",
-    "potato chips":     "5",
-    # Beverages (6)
-    "soda can":         "6",
-    "water bottle":     "6",
-    "juice":            "6",
-    # Dry Goods / Pasta (2)
-    "pasta":            "2",
-    "spaghetti":        "2",
-    "rice":             "2",
-    # Baking (3)
-    "coffee":           "3",
-    "flour bag":        "3",
-    "sugar":            "3",
-    # Canned goods (11)
-    "canned food":      "11",
-    "tin can":          "11",
-    # Cleaning (cleaning)
-    "detergent":        "cleaning",
-    "cleaning product": "cleaning",
-    # Pharmacy (pharmacy)
-    "medicine bottle":  "pharmacy",
-    "pill bottle":      "pharmacy",
-}
-
-def match_yolo(results) -> tuple[str | None, str | None, float]:
-    """Return (node_id, class_name, confidence) for highest-confidence YOLO hit."""
-    best_node, best_cls, best_conf = None, None, 0.0
-    for result in results:
-        for box in result.boxes:
-            conf  = float(box.conf[0])
-            cls   = result.names[int(box.cls[0])]
-            node  = YOLO_TO_NODE.get(cls.lower())
-            if node and conf > 0.45 and conf > best_conf:
-                best_conf = conf
-                best_node = node
-                best_cls  = cls
-    return best_node, best_cls, best_conf
 
 # ── llama3.2 ───────────────────────────────────────────────────────────────
 def load_memory():
@@ -420,7 +375,7 @@ def draw_minimap(frame, navigator):
     return frame
 
 # ── Draw overlay ───────────────────────────────────────────────────────────
-def draw_overlay(frame, ocr_results, navigator, detected, yolo_results=None):
+def draw_overlay(frame, ocr_results, navigator, detected):
     h, w = frame.shape[:2]
 
     # OCR boxes — green (sign text detected)
@@ -431,23 +386,6 @@ def draw_overlay(frame, ocr_results, navigator, detected, yolo_results=None):
             cv2.putText(frame, f"{text} ({prob:.2f})",
                         (pts[0][0], pts[0][1]-10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-
-    # YOLO boxes — orange (fallback object detection, shown only when OCR found no sign)
-    if yolo_results:
-        for result in yolo_results:
-            for box in result.boxes:
-                conf = float(box.conf[0])
-                cls  = result.names[int(box.cls[0])]
-                if conf > 0.35:
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    node  = YOLO_TO_NODE.get(cls.lower())
-                    color = (0, 140, 255) if node else (160, 160, 160)
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                    label = f"[YOLO] {cls} {conf:.2f}"
-                    if node:
-                        label += f" -> {STORE_NODES.get(node, {}).get('name', node)}"
-                    cv2.putText(frame, label, (x1, max(y1 - 8, 10)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
 
     # Status bar
     status, color = navigator.get_status()
@@ -495,9 +433,6 @@ def test_image(image_path: str):
 
     print("Loading EasyOCR...")
     reader = easyocr.Reader(["en"], gpu=True, verbose=False)
-    print("Loading YOLO-World...")
-    yolo   = YOLO("yolov8s-worldv2.pt")
-    yolo.set_classes(list(YOLO_TO_NODE.keys()))
     print("Models ready.\n")
 
     # --- OCR ---
@@ -512,31 +447,13 @@ def test_image(image_path: str):
     else:
         print("  => No aisle sign matched")
 
-    # --- YOLO ---
-    print(f"\nYOLO detections:")
-    yolo_results = yolo(frame, verbose=False)
-    any_yolo = False
-    for result in yolo_results:
-        for box in result.boxes:
-            conf = float(box.conf[0])
-            cls  = result.names[int(box.cls[0])]
-            if conf > 0.35:
-                any_yolo = True
-                node = YOLO_TO_NODE.get(cls.lower())
-                if node:
-                    print(f"  '{cls}'  conf={conf:.2f}  => {node} ({STORE_NODES.get(node,{}).get('name',node)})")
-                else:
-                    print(f"  '{cls}'  conf={conf:.2f}  (no store node mapped)")
-    if not any_yolo:
-        print("  Nothing detected above threshold")
-
     # --- Show annotated image ---
     nav_dummy = type("N", (), {
         "route": ["entrance"], "current_step": 0,
         "current_position": "entrance", "completed": False,
         "last_instruction": "Test mode.", "get_status": lambda s: ("Test mode", (255,255,0))
     })()
-    frame = draw_overlay(frame, ocr_results, nav_dummy, ocr_node, yolo_results)
+    frame = draw_overlay(frame, ocr_results, nav_dummy, ocr_node)
     cv2.imshow("WayfinderAI - Test Image", frame)
     print("\nPress any key to close.")
     cv2.waitKey(0)
@@ -556,14 +473,12 @@ def main():
     route = select_route()
     print(f"\nFull Route: {' -> '.join(STORE_NODES.get(n,{}).get('name',n) for n in route)}")
 
+    threading.Thread(target=_start_stream, daemon=True).start()
+    print(f"Video stream: http://localhost:{STREAM_PORT}/video_feed")
+
     print("\nLoading EasyOCR...")
     reader = easyocr.Reader(["en"], gpu=True, verbose=False)
     print("OCR ready.")
-
-    print("Loading YOLO-World (open-vocab fallback detector)...")
-    yolo = YOLO("yolov8s-worldv2.pt")
-    yolo.set_classes(list(YOLO_TO_NODE.keys()))
-    print(f"YOLO-World ready. Watching for {len(YOLO_TO_NODE)} grocery classes.")
 
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
@@ -574,7 +489,6 @@ def main():
     nav          = Navigator(route)
     frame_count  = 0
     ocr_results  = []
-    yolo_results = []
     last_matched = None
 
     while True:
@@ -603,39 +517,23 @@ def main():
             node, text, conf = match_text(texts)
             if node:
                 node_name = STORE_NODES.get(node, {}).get("name", node)
+                code = f"A{node}" if node.isdigit() else node
                 print(f"  => OCR MATCHED: '{text}' -> {node} ({node_name})  conf={conf:.2f}")
+                write_location(node, code, conf)
                 beep("detect")
                 last_matched = node
-                yolo_results = []          # clear YOLO — OCR won
                 nav.update(node)
             else:
-                # ── OCR found nothing → run YOLO as fallback ──────────────
-                print(f"  => No sign found — running YOLO object detection...")
-                yolo_results = yolo(frame, verbose=False)
-                yolo_node, yolo_cls, yolo_conf = match_yolo(yolo_results)
-                if yolo_node:
-                    node_name = STORE_NODES.get(yolo_node, {}).get("name", yolo_node)
-                    print(f"  => YOLO MATCHED: '{yolo_cls}' -> {yolo_node} ({node_name})  conf={yolo_conf:.2f}")
-                    beep("detect")
-                    yolo_msg = narrate(
-                        f"Camera detected {yolo_cls} nearby. This product is in {node_name}.",
-                        "Tell the shopper what product was detected and that they may be in the right area."
-                    )
-                    speak(yolo_msg, block=False)
-                    last_matched = yolo_node
-                    nav.update(yolo_node)
-                else:
-                    # Print all YOLO detections even if none map to a node
-                    for result in yolo_results:
-                        for box in result.boxes:
-                            cls  = result.names[int(box.cls[0])]
-                            conf_val = float(box.conf[0])
-                            if conf_val > 0.35:
-                                print(f"  YOLO sees: '{cls}'  conf={conf_val:.2f}  (no node match)")
-                    print(f"  => YOLO: nothing matched")
+                print(f"  => No sign found")
 
-        frame = draw_overlay(frame, ocr_results, nav, last_matched, yolo_results)
+        frame = draw_overlay(frame, ocr_results, nav, last_matched)
         frame = draw_minimap(frame, nav)
+
+        # Push annotated frame to MJPEG stream
+        _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        with _frame_lock:
+            _latest_frame = jpeg.tobytes()
+
         cv2.imshow("WayfinderAI - Agent 3", frame)
 
         key = cv2.waitKey(1) & 0xFF

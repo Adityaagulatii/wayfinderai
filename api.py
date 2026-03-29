@@ -93,6 +93,22 @@ def extract(req: ExtractRequest):
         return {"ingredients": [], "intro": "", "error": str(e)}
 
 
+# ── GET /location ────────────────────────────────────────────────────────────
+# OCR agent writes current_location.json; frontend polls this to update map
+
+@app.get("/location")
+def get_location():
+    import json as _json
+    path = os.path.join(os.path.dirname(__file__), "data", "current_location.json")
+    try:
+        with open(path) as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        return {"node_id": None, "code": None, "name": None}
+    except Exception as e:
+        return {"node_id": None, "error": str(e)}
+
+
 # ── GET /aisle/{node_id} ──────────────────────────────────────────────────────
 # Returns items for a specific aisle node
 
@@ -197,6 +213,12 @@ def navigate(req: NavRequest):
         full_path.append("exit")
     except:
         pass
+
+    # Write route so ocr_agent.py can auto-load it
+    import json as _json
+    _lr = os.path.join(os.path.dirname(__file__), "data", "last_route.json")
+    with open(_lr, "w") as _f:
+        _json.dump({"route": full_path, "store": _store["name"]}, _f)
 
     return {
         "route":      full_path,

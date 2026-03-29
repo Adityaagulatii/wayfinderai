@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
-const API = "http://localhost:8002";
+const API = "http://localhost:8003";
 
-// ── Shared helpers ─────────────────────────────────────────────────────────────
 const SCALE_X = 82, SCALE_Y = 72, OFFSET_X = 50, OFFSET_Y = 110;
 const SVG_W = 1160, SVG_H = 600;
 function toSVG(x, y) { return [x * SCALE_X + OFFSET_X, SVG_H - (y * SCALE_Y + OFFSET_Y)]; }
@@ -11,7 +10,7 @@ function nodeColor(id, name = "") {
   const n = name.toLowerCase();
   if (id === "entrance")  return "#f59e0b";
   if (id === "exit")      return "#ef4444";
-  if (id === "checkout" || id.startsWith("checkout")) return "#8b5cf6";
+  if (id === "checkout")  return "#8b5cf6";
   if (id === "100" || n.includes("dairy"))   return "#3b82f6";
   if (id === "101" || n.includes("meat"))    return "#ef4444";
   if (id === "152" || n.includes("bakery"))  return "#f97316";
@@ -31,7 +30,7 @@ function nodeColor(id, name = "") {
   return "#6366f1";
 }
 
-// ── Mini route map ─────────────────────────────────────────────────────────────
+// ── Route map ──────────────────────────────────────────────────────────────────
 function RouteMap({ nodes, edges, route, currentNode }) {
   const [hovered, setHovered] = useState(null);
   if (!nodes.length) return null;
@@ -49,24 +48,29 @@ function RouteMap({ nodes, edges, route, currentNode }) {
         if (!f || !t) return null;
         const [x1,y1] = toSVG(f.x,f.y), [x2,y2] = toSVG(t.x,t.y);
         const isR = routeEdgeSet.has(`${e.from}-${e.to}`);
-        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={isR ? "#1d4ed8" : "#b0b8c4"} strokeWidth={isR ? 3 : 1.5} opacity={!isR ? 0.4 : 1} />;
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke={isR ? "#1d4ed8" : "#b0b8c4"} strokeWidth={isR ? 3 : 1.5} opacity={route.length && !isR ? 0.4 : 1}/>;
       })}
       {nodes.map(n => {
         const [cx,cy] = toSVG(n.x,n.y);
-        const isR = routeSet.has(n.id), isCurr = n.id === currentNode, isDim = !routeSet.has(n.id);
-        const r = isCurr ? 18 : 13;
-        const fill = isCurr ? "#ef4444" : isR ? "#1d4ed8" : nodeColor(n.id, n.name);
-        const label = !isNaN(n.id) ? `A${n.id}` : n.id === "entrance" ? "ENT" : n.id === "exit" ? "EXIT" : n.id === "checkout" ? "CHK" : n.id.slice(0,4).toUpperCase();
+        const isCurr = n.id === currentNode;
+        const isR    = routeSet.has(n.id);
+        const isDim  = route.length > 0 && !isR;
+        const r      = isCurr ? 20 : 13;
+        const fill   = isCurr ? "#ef4444" : isR ? "#1d4ed8" : nodeColor(n.id, n.name);
+        const label  = !isNaN(n.id) ? `A${n.id}` : n.id === "entrance" ? "ENT" : n.id === "exit" ? "EXIT" : n.id === "checkout" ? "CHK" : n.id.slice(0,4).toUpperCase();
         return (
           <g key={n.id} onMouseEnter={() => setHovered(n.id)} onMouseLeave={() => setHovered(null)}>
-            {isCurr && <circle cx={cx} cy={cy} r={r+8} fill="none" stroke="#ef4444" strokeWidth={2} opacity={0.25}/>}
-            {hovered===n.id && <circle cx={cx} cy={cy} r={r+6} fill="none" stroke={fill} strokeWidth={2} opacity={0.3}/>}
+            {isCurr && <circle cx={cx} cy={cy} r={r+10} fill="none" stroke="#ef4444" strokeWidth={2} opacity={0.25}/>}
             <circle cx={cx} cy={cy} r={r} fill={fill} stroke={fill} strokeWidth={1.5} opacity={isDim ? 0.25 : 1}/>
-            <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="800" fill="#fff" opacity={isDim ? 0.35 : 1} style={{pointerEvents:"none",userSelect:"none"}}>{label}</text>
-            {hovered===n.id && (
+            <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="800"
+              fill="#fff" opacity={isDim ? 0.35 : 1} style={{pointerEvents:"none",userSelect:"none"}}>{label}</text>
+            {hovered === n.id && (
               <g>
-                <rect x={cx-55} y={cy-r-28} width={110} height={20} rx={4} fill="#1e293b" opacity={0.9}/>
-                <text x={cx} y={cy-r-14} textAnchor="middle" fontSize="10" fill="#fff" style={{pointerEvents:"none",userSelect:"none"}}>{n.name.replace(/^Aisle \d+ - /,"")}</text>
+                <rect x={cx-60} y={cy-r-28} width={120} height={20} rx={4} fill="#1e293b" opacity={0.92}/>
+                <text x={cx} y={cy-r-14} textAnchor="middle" fontSize="10" fill="#fff" style={{pointerEvents:"none",userSelect:"none"}}>
+                  {n.name.replace(/^Aisle \d+ - /,"")}
+                </text>
               </g>
             )}
           </g>
@@ -76,166 +80,107 @@ function RouteMap({ nodes, edges, route, currentNode }) {
   );
 }
 
-// ── Step indicator ─────────────────────────────────────────────────────────────
-const STEPS = [
-  { id: 0, label: "Agent 0", desc: "Extract Ingredients" },
-  { id: 1, label: "Agent 2", desc: "Navigate" },
-  { id: 2, label: "Agent 3", desc: "Scan Aisle Sign" },
-  { id: 3, label: "Agent 4", desc: "Find on Shelf" },
-];
-
-function StepBar({ current }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", padding: "20px 32px", background: "#fff", borderBottom: "1px solid #e2e6ea" }}>
-      {STEPS.map((s, i) => (
-        <div key={s.id} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : 0 }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 700, fontSize: 13,
-              background: current > s.id ? "#22c55e" : current === s.id ? "#2563eb" : "#e2e8f0",
-              color: current >= s.id ? "#fff" : "#94a3b8",
-              border: current === s.id ? "2px solid #1d4ed8" : "2px solid transparent",
-              transition: "all 0.3s",
-            }}>
-              {current > s.id ? "✓" : s.id + 1}
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: current === s.id ? "#2563eb" : current > s.id ? "#22c55e" : "#94a3b8" }}>{s.label}</div>
-              <div style={{ fontSize: 10, color: "#94a3b8" }}>{s.desc}</div>
-            </div>
-          </div>
-          {i < STEPS.length - 1 && (
-            <div style={{ flex: 1, height: 2, margin: "0 12px", marginBottom: 24, background: current > s.id ? "#22c55e" : "#e2e8f0", transition: "background 0.3s" }} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Agent 0 — Extract ──────────────────────────────────────────────────────────
-function Agent0({ onDone }) {
-  const [input, setInput]           = useState("");
-  const [loading, setLoading]       = useState(false);
-  const [result, setResult]         = useState(null);
-  const [listening, setListening]   = useState(false);
+// ── STEP 0: Chatbot ────────────────────────────────────────────────────────────
+function ChatStep({ onDone }) {
+  const [input, setInput]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState(null);
+  const [listening, setListening] = useState(false);
   const [listenError, setListenError] = useState("");
-  const recognitionRef              = useRef(null);
+  const recognitionRef          = useRef(null);
 
   function startListen() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setListenError("Use Chrome for voice input."); return; }
-
     if (recognitionRef.current) { recognitionRef.current.stop(); return; }
-
     const r = new SR();
-    r.lang = "en-US";
-    r.interimResults = true;
-    r.continuous = false;
+    r.lang = "en-US"; r.interimResults = true; r.continuous = false;
+    r.onresult = e => { setInput(Array.from(e.results).map(x => x[0].transcript).join("")); setListenError(""); };
+    r.onerror  = e => { setListenError({ "not-allowed": "Mic denied.", "network": "Use Chrome.", "no-speech": "No speech detected." }[e.error] || `Error: ${e.error}`); setListening(false); recognitionRef.current = null; };
+    r.onend    = () => { setListening(false); recognitionRef.current = null; };
+    recognitionRef.current = r; r.start(); setListening(true); setListenError("");
+  }
 
-    r.onresult = e => {
-      const transcript = Array.from(e.results).map(res => res[0].transcript).join("");
-      setInput(transcript);
-      setListenError("");
-    };
-
-    r.onerror = e => {
-      const msg = {
-        "not-allowed":  "Microphone permission denied.",
-        "no-speech":    "No speech detected — try again.",
-        "network":      "Network error — use Chrome browser.",
-        "audio-capture":"No microphone found.",
-      }[e.error] || `Error: ${e.error}`;
-      setListenError(msg);
-      setListening(false);
-      recognitionRef.current = null;
-    };
-
-    r.onend = () => { setListening(false); recognitionRef.current = null; };
-
-    recognitionRef.current = r;
-    r.start();
-    setListening(true);
-    setListenError("");
+  function speak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US"; u.rate = 1.0; u.pitch = 1.0;
+    window.speechSynthesis.speak(u);
   }
 
   async function extract() {
     if (!input.trim()) return;
     setLoading(true); setResult(null);
-    const res = await fetch(`${API}/extract`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: input }),
-    });
-    const data = await res.json();
-    setResult(data); setLoading(false);
+    try {
+      const res  = await fetch(`${API}/extract`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: input }) });
+      const data = await res.json();
+      setResult(data);
+      if (data.ingredients?.length) {
+        const msg = (data.intro ? data.intro + " " : "") +
+          `I found ${data.ingredients.length} ingredients: ${data.ingredients.join(", ")}.`;
+        speak(msg);
+      }
+    } catch { setResult({ error: "Could not reach backend." }); }
+    setLoading(false);
   }
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "40px 24px" }}>
-      <h2 style={{ color: "#1e293b", fontSize: 22, fontWeight: 700, margin: "0 0 6px" }}>What would you like to make?</h2>
-      <p style={{ color: "#94a3b8", fontSize: 14, margin: "0 0 24px" }}>
-        Tell us a recipe, meal plan, occasion, or just list items — Agent 0 will build your grocery list.
-      </p>
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "48px 24px" }}>
+      {/* Logo / greeting */}
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#eff6ff", border: "2px solid #bfdbfe", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>🛒</div>
+        <h2 style={{ color: "#1e293b", fontSize: 22, fontWeight: 700, margin: "0 0 6px" }}>What would you like to make?</h2>
+        <p style={{ color: "#94a3b8", fontSize: 14, margin: 0 }}>Tell me a recipe or list items — I'll build your grocery list.</p>
+      </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      {/* Input */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <input value={input} onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && extract()}
-          placeholder="e.g. carbonara for 4, vegan dinner, game day snacks..."
-          style={{ flex: 1, padding: "12px 16px", borderRadius: 10, border: "1px solid #e2e6ea", background: "#f8fafc", color: "#1e293b", fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+          placeholder="e.g. carbonara for 4, vegan dinner..."
+          style={{ flex: 1, padding: "13px 16px", borderRadius: 12, border: "1px solid #e2e6ea", background: "#f8fafc", color: "#1e293b", fontSize: 14, outline: "none", fontFamily: "inherit" }}/>
         <button onClick={startListen} title={listening ? "Stop" : "Speak"} style={{
-          padding: "0 14px", borderRadius: 10,
-          border: `1px solid ${listening ? "#2563eb" : "#e2e6ea"}`,
-          background: listening ? "#eff6ff" : "#f8fafc",
-          color: listening ? "#2563eb" : "#94a3b8",
-          cursor: "pointer", fontSize: 18,
+          padding: "0 16px", borderRadius: 12, border: `1px solid ${listening ? "#2563eb" : "#e2e6ea"}`,
+          background: listening ? "#eff6ff" : "#f8fafc", color: listening ? "#2563eb" : "#94a3b8", cursor: "pointer", fontSize: 20,
         }}>{listening ? "⏹" : "🎤"}</button>
       </div>
-      {listening && (
-        <p style={{ color: "#2563eb", fontSize: 13, margin: "0 0 12px" }}>
-          🔴 Listening — speak now, click ⏹ to stop
-        </p>
-      )}
-      {listenError && <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 12px" }}>{listenError}</p>}
+      {listening   && <p style={{ color: "#2563eb", fontSize: 12, margin: "0 0 8px" }}>🔴 Listening — speak now</p>}
+      {listenError && <p style={{ color: "#dc2626", fontSize: 12, margin: "0 0 8px" }}>{listenError}</p>}
 
       <button onClick={extract} disabled={loading || !input.trim()} style={{
-        width: "100%", padding: "12px 0", borderRadius: 10, border: "none",
+        width: "100%", padding: "13px 0", borderRadius: 12, border: "none",
         background: loading || !input.trim() ? "#e2e6ea" : "#2563eb",
         color: loading || !input.trim() ? "#94a3b8" : "#fff",
         fontSize: 15, fontWeight: 600, cursor: loading || !input.trim() ? "not-allowed" : "pointer", fontFamily: "inherit",
-      }}>
-        {loading ? "Extracting ingredients..." : "Extract Ingredients"}
-      </button>
+      }}>{loading ? "Finding ingredients..." : "Find Ingredients"}</button>
 
+      {/* Result */}
       {result && !result.error && (
         <div style={{ marginTop: 24 }}>
           {result.intro && (
-            <div style={{ padding: "14px 16px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ padding: "14px 16px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 12, marginBottom: 16 }}>
               <p style={{ color: "#166534", fontSize: 14, margin: 0, fontStyle: "italic" }}>"{result.intro}"</p>
             </div>
           )}
-          <div style={{ padding: "16px", background: "#fff", border: "1px solid #e2e6ea", borderRadius: 10 }}>
+          <div style={{ padding: 16, background: "#fff", border: "1px solid #e2e6ea", borderRadius: 12 }}>
             <p style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 12px" }}>
-              Found {result.ingredients.length} ingredients
+              {result.ingredients.length} ingredients found
             </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
               {result.ingredients.map((ing, i) => (
-                <span key={i} style={{ padding: "4px 12px", background: "#eff6ff", color: "#2563eb", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #bfdbfe" }}>
-                  {ing}
-                </span>
+                <span key={i} style={{ padding: "5px 14px", background: "#eff6ff", color: "#2563eb", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #bfdbfe" }}>{ing}</span>
               ))}
             </div>
             <button onClick={() => onDone(result.ingredients)} style={{
-              width: "100%", padding: "11px 0", borderRadius: 10, border: "none",
-              background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}>
-              Navigate with these items →
-            </button>
+              width: "100%", padding: "13px 0", borderRadius: 12, border: "none",
+              background: "#2563eb", color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>Get Navigation Route →</button>
           </div>
         </div>
       )}
       {result?.error && (
-        <div style={{ marginTop: 16, padding: 14, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
+        <div style={{ marginTop: 16, padding: 14, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12 }}>
           <p style={{ color: "#dc2626", fontSize: 13, margin: 0 }}>Error: {result.error}</p>
         </div>
       )}
@@ -243,291 +188,233 @@ function Agent0({ onDone }) {
   );
 }
 
-// ── Agent 2 — Navigate ─────────────────────────────────────────────────────────
-function Agent2({ ingredients, mapData, onStepReady }) {
-  const [result, setResult]           = useState(null);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState(null);
-  const [currentStep, setCurrentStep] = useState(0);
-  const activeStepRef                 = useRef(null);
+// ── STEP 1: Route preview + confirm ───────────────────────────────────────────
+function RoutePreview({ ingredients, mapData, onStart }) {
+  const [result, setResult]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
 
-  useEffect(() => {
-    if (ingredients.length) doNavigate();
-  }, []);
+  useEffect(() => { loadRoute(); }, []);
 
-  useEffect(() => {
-    if (activeStepRef.current) {
-      activeStepRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [currentStep]);
-
-  async function doNavigate() {
+  async function loadRoute() {
     setLoading(true); setError(null);
     try {
-      const res = await fetch(`${API}/navigate`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: ingredients }),
-      });
+      const res  = await fetch(`${API}/navigate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: ingredients }) });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data = await res.json();
-      setResult(data);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+      setResult(await res.json());
+    } catch (e) { setError(e.message); }
+    setLoading(false);
   }
 
-  const currentNode = result?.route?.[Math.min(currentStep, (result?.route?.length ?? 1) - 1)] ?? "entrance";
-  const directions  = result?.directions ?? [];
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
+      <p style={{ color: "#94a3b8", fontSize: 14 }}>Finding best route...</p>
+    </div>
+  );
 
+  if (error) return (
+    <div style={{ maxWidth: 400, margin: "60px auto", padding: 24, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12 }}>
+      <p style={{ color: "#dc2626", fontSize: 14, margin: "0 0 12px" }}>Failed: {error}</p>
+      <button onClick={loadRoute} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>Retry</button>
+    </div>
+  );
+
+  const dirs = result?.directions ?? [];
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 180px)" }}>
+    <div style={{ display: "flex", height: "calc(100vh - 57px)" }}>
       {/* Sidebar */}
       <div style={{ width: 320, borderRight: "1px solid #e2e6ea", background: "#fff", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9" }}>
-          <p style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Shopping List</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <div style={{ padding: "20px", borderBottom: "1px solid #f1f5f9" }}>
+          <p style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 10px" }}>Your List</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             {ingredients.map((ing, i) => (
               <span key={i} style={{ padding: "3px 10px", background: "#eff6ff", color: "#2563eb", borderRadius: 20, fontSize: 12, border: "1px solid #bfdbfe" }}>{ing}</span>
             ))}
           </div>
           {result?.not_found?.length > 0 && (
-            <p style={{ color: "#dc2626", fontSize: 12, margin: "8px 0 0" }}>Not found: {result.not_found.join(", ")}</p>
+            <p style={{ color: "#dc2626", fontSize: 12, margin: 0 }}>Not found: {result.not_found.join(", ")}</p>
           )}
         </div>
-
-        {loading && <p style={{ color: "#94a3b8", padding: 20, fontSize: 13 }}>Finding best route...</p>}
-        {error && (
-          <div style={{ margin: 16, padding: 14, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
-            <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 10px" }}>Failed: {error}</p>
-            <button onClick={doNavigate} style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              Retry
-            </button>
-          </div>
-        )}
 
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-          {directions.map((d, i) => {
-            const isActive = result?.route?.indexOf(d.target) === currentStep;
-            const dirColor = d.direction === "TL" ? "#d97706" : d.direction === "TR" ? "#2563eb" : "#64748b";
-            return (
-              <div key={i} ref={isActive ? activeStepRef : null}
-                onClick={() => setCurrentStep(result.route.indexOf(d.target))}
-                style={{ margin: "0 12px 4px", padding: "10px 12px", borderRadius: 10, cursor: "pointer", background: isActive ? "#eff6ff" : "#fafbfc", border: `1px solid ${isActive ? "#bfdbfe" : "#e2e8f0"}` }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 20, height: 20, borderRadius: "50%", fontSize: 10, fontWeight: 700, background: isActive ? "#2563eb" : "#e2e8f0", color: isActive ? "#fff" : "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center" }}>{d.step}</span>
-                    <span style={{ color: isActive ? "#1e40af" : "#334155", fontWeight: 600, fontSize: 13 }}>{d.name}</span>
-                  </div>
-                  <span style={{ fontSize: 10, color: "#94a3b8" }}>{d.step}/{d.total}</span>
-                </div>
-                {d.walk.length > 0 && (
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 5 }}>
-                    {d.walk.map((s,j) => <span key={j}><span style={{ color: isActive ? "#475569" : "#cbd5e1" }}>{s.replace(/^Aisle \d+ - /,"")}</span>{j < d.walk.length-1 && <span style={{ color: "#e2e8f0", margin: "0 3px" }}>→</span>}</span>)}
-                  </div>
-                )}
-                <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 5, fontSize: 11, fontWeight: 600, background: isActive ? "#eff6ff" : "#f1f5f9", color: isActive ? dirColor : "#94a3b8", border: `1px solid ${isActive ? dirColor+"40" : "#e2e8f0"}` }}>
-                  {d.direction} · {d.dir_label}
-                </span>
-                {d.items.map((item,j) => <div key={j} style={{ fontSize: 11, color: isActive ? "#334155" : "#64748b", paddingLeft: 4, lineHeight: 1.7, marginTop: 4 }}>· {item}</div>)}
+          {dirs.map((d, i) => (
+            <div key={i} style={{ margin: "0 12px 4px", padding: "10px 12px", borderRadius: 10, background: "#fafbfc", border: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", fontSize: 10, fontWeight: 700, background: "#e2e8f0", color: "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{d.step}</span>
+                <span style={{ fontWeight: 600, fontSize: 13, color: "#334155" }}>{d.name}</span>
+                <span style={{ marginLeft: "auto", fontSize: 16 }}>{d.dir_arrow}</span>
               </div>
-            );
-          })}
+              {d.items.map((item, j) => <div key={j} style={{ fontSize: 11, color: "#64748b", paddingLeft: 28 }}>· {item}</div>)}
+            </div>
+          ))}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 16px", borderTop: "1px solid #e2e6ea" }}>
-          {result && (
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setCurrentStep(s => Math.max(0, s-1))} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "1px solid #e2e6ea", background: "#f8fafc", color: "#475569", cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>← Prev</button>
-              <button onClick={() => setCurrentStep(s => Math.min(result.route.length-1, s+1))} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "1px solid #e2e6ea", background: "#f8fafc", color: "#475569", cursor: "pointer", fontSize: 13, fontFamily: "inherit" }}>Next →</button>
-            </div>
-          )}
-          {result && (
-            <button onClick={() => onStepReady(result)} style={{ padding: "10px 0", borderRadius: 8, border: "none", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              Start Walking → Scan Aisle Signs
-            </button>
-          )}
+        <div style={{ padding: "16px", borderTop: "1px solid #e2e6ea" }}>
+          <button onClick={() => onStart(result)} style={{
+            width: "100%", padding: "13px 0", borderRadius: 10, border: "none",
+            background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          }}>Start Navigation →</button>
         </div>
       </div>
 
       {/* Map */}
-      <div style={{ flex: 1, padding: 20, background: "#f1f4f8", overflowY: "auto" }}>
-        <RouteMap nodes={mapData.nodes||[]} edges={mapData.edges||[]} route={result?.route||[]} currentNode={currentNode} />
+      <div style={{ flex: 1, padding: 24, background: "#f1f4f8" }}>
+        <p style={{ color: "#64748b", fontSize: 12, fontWeight: 600, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: 0.8 }}>Your Route</p>
+        <RouteMap nodes={mapData.nodes||[]} edges={mapData.edges||[]} route={result?.route||[]} currentNode="entrance" />
       </div>
     </div>
   );
 }
 
-// ── Agent 3 — Scan Aisle Sign ──────────────────────────────────────────────────
-function Agent3({ navResult, onConfirmed }) {
-  const videoRef  = useRef(null);
-  const canvasRef = useRef(null);
-  const [scanning, setScanning]   = useState(false);
-  const [scanResult, setScanResult] = useState(null);
-  const [loading, setLoading]     = useState(false);
+// ── STEP 2: Live navigation driven by ocr_agent.py ────────────────────────────
+function LiveNav({ navResult, mapData }) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [detected, setDetected]       = useState(null); // { node_id, code, name, confidence }
 
-  async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    videoRef.current.srcObject = stream; videoRef.current.play(); setScanning(true);
-  }
+  const dirs  = navResult?.directions ?? [];
+  const route = navResult?.route      ?? [];
+  const dir   = dirs[currentStep]     ?? null;
+  const currentNode = route[Math.min(currentStep, route.length - 1)] ?? "entrance";
 
-  function capture() {
-    const canvas = canvasRef.current, video = videoRef.current;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    canvas.toBlob(async blob => {
-      setLoading(true); setScanResult(null);
-      const form = new FormData();
-      form.append("file", blob, "sign.jpg");
-      const res = await fetch(`${API}/ocr`, { method: "POST", body: form });
-      setScanResult(await res.json()); setLoading(false);
-    }, "image/jpeg");
-  }
+  // Poll /location every 2s — written by ocr_agent.py
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const data = await fetch(`${API}/location`).then(r => r.json());
+        if (!data.node_id) return;
+        setDetected(data);
+        // Advance if scanned node appears anywhere in the remaining route
+        const remaining = route.slice(currentStep);
+        if (remaining.includes(data.node_id)) {
+          setTimeout(() => {
+            setDetected(null);
+            setCurrentStep(s => Math.min(s + 1, dirs.length - 1));
+          }, 1500);
+        }
+      } catch {}
+    }, 2000);
+    return () => clearInterval(id);
+  }, [currentStep, route, dirs.length]);
 
-  const matched = scanResult?.matched;
+  const done = currentStep >= dirs.length;
 
-  return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "32px 24px" }}>
-      <h2 style={{ color: "#1e293b", fontSize: 20, fontWeight: 700, margin: "0 0 6px" }}>Scan Aisle Sign</h2>
-      <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 20px" }}>Point your camera at the aisle sign to confirm your current location on the map.</p>
-
-      {!scanning ? (
-        <button onClick={startCamera} style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          📷 Start Camera
-        </button>
-      ) : (
-        <>
-          <video ref={videoRef} style={{ width: "100%", borderRadius: 10, marginBottom: 10 }} autoPlay playsInline muted />
-          <button onClick={capture} disabled={loading} style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: loading ? "#e2e6ea" : "#0284c7", color: loading ? "#94a3b8" : "#fff", fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-            {loading ? "Reading sign..." : "📸 Read Aisle Sign"}
-          </button>
-        </>
-      )}
-      <canvas ref={canvasRef} style={{ display: "none" }} />
-
-      {scanResult && (
-        <div style={{ marginTop: 16, padding: 16, borderRadius: 10, background: matched ? "#f0fdf4" : "#fff7ed", border: `1px solid ${matched ? "#bbf7d0" : "#fed7aa"}` }}>
-          {matched ? (
-            <>
-              <p style={{ color: "#166534", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>✓ Confirmed: {matched.aisle}</p>
-              <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px" }}>Aisle code: {matched.code}</p>
-              <button onClick={() => onConfirmed(matched)} style={{ width: "100%", padding: "10px 0", borderRadius: 8, border: "none", background: "#22c55e", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                Confirmed — Find product on shelf →
-              </button>
-            </>
-          ) : (
-            <p style={{ color: "#92400e", fontSize: 13, margin: 0 }}>No aisle sign detected. Try again or move closer.</p>
-          )}
-        </div>
-      )}
-
-      <button onClick={() => onConfirmed(null)} style={{ width: "100%", marginTop: 10, padding: "9px 0", borderRadius: 10, border: "1px solid #e2e6ea", background: "transparent", color: "#94a3b8", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-        Skip → Go to shelf scanner
-      </button>
+  if (done) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 57px)", background: "#f1f4f8" }}>
+      <div style={{ textAlign: "center", padding: 40 }}>
+        <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+        <h2 style={{ color: "#166534", fontSize: 24, fontWeight: 700, margin: "0 0 8px" }}>All items collected!</h2>
+        <p style={{ color: "#64748b", fontSize: 15, margin: 0 }}>Head to checkout and you're done.</p>
+      </div>
     </div>
   );
-}
-
-// ── Agent 4 — Shelf Scanner ────────────────────────────────────────────────────
-function Agent4({ ingredients }) {
-  const videoRef  = useRef(null);
-  const canvasRef = useRef(null);
-  const [product, setProduct]     = useState(ingredients[0] || "");
-  const [scanning, setScanning]   = useState(false);
-  const [scanResult, setScanResult] = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [done, setDone]           = useState([]);
-
-  async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    videoRef.current.srcObject = stream; videoRef.current.play(); setScanning(true);
-  }
-
-  function capture() {
-    const canvas = canvasRef.current, video = videoRef.current;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    canvas.toBlob(async blob => {
-      setLoading(true); setScanResult(null);
-      const form = new FormData();
-      form.append("product", product); form.append("file", blob, "shelf.jpg");
-      const res = await fetch(`${API}/scan`, { method: "POST", body: form });
-      setScanResult(await res.json()); setLoading(false);
-    }, "image/jpeg");
-  }
-
-  function markFound() {
-    setDone(d => [...d, product]);
-    const remaining = ingredients.filter(i => ![...done, product].includes(i));
-    if (remaining.length) setProduct(remaining[0]);
-    setScanResult(null);
-  }
-
-  const remaining = ingredients.filter(i => !done.includes(i));
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "32px 24px" }}>
-      <h2 style={{ color: "#1e293b", fontSize: 20, fontWeight: 700, margin: "0 0 6px" }}>Find on Shelf</h2>
+    <div style={{ display: "flex", height: "calc(100vh - 57px)" }}>
 
-      {/* Progress */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
-        {ingredients.map((ing, i) => (
-          <span key={i} style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 500, background: done.includes(ing) ? "#f0fdf4" : ing === product ? "#eff6ff" : "#f8fafc", color: done.includes(ing) ? "#166534" : ing === product ? "#1d4ed8" : "#94a3b8", border: `1px solid ${done.includes(ing) ? "#bbf7d0" : ing === product ? "#bfdbfe" : "#e2e8f0"}` }}>
-            {done.includes(ing) ? "✓ " : ""}{ing}
-          </span>
-        ))}
-      </div>
+      {/* Left — instructions + step list */}
+      <div style={{ width: 320, borderRight: "1px solid #e2e6ea", background: "#fff", display: "flex", flexDirection: "column", flexShrink: 0 }}>
 
-      {remaining.length === 0 ? (
-        <div style={{ padding: 24, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 12, textAlign: "center" }}>
-          <p style={{ fontSize: 24, margin: "0 0 8px" }}>🎉</p>
-          <p style={{ color: "#166534", fontSize: 16, fontWeight: 700, margin: 0 }}>All items found! Head to checkout.</p>
-        </div>
-      ) : (
-        <>
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Looking for</p>
-            <select value={product} onChange={e => { setProduct(e.target.value); setScanResult(null); }}
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e6ea", background: "#f8fafc", color: "#1e293b", fontSize: 14, fontFamily: "inherit", outline: "none" }}>
-              {remaining.map((ing, i) => <option key={i} value={ing}>{ing}</option>)}
-            </select>
-          </div>
-
-          {!scanning ? (
-            <button onClick={startCamera} style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              📷 Start Camera
-            </button>
-          ) : (
-            <>
-              <video ref={videoRef} style={{ width: "100%", borderRadius: 10, marginBottom: 10 }} autoPlay playsInline muted />
-              <button onClick={capture} disabled={loading} style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: loading ? "#e2e6ea" : "#0284c7", color: loading ? "#94a3b8" : "#fff", fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-                {loading ? "Scanning..." : "🔍 Scan Shelf"}
-              </button>
-            </>
-          )}
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-
-          {scanResult && (
-            <div style={{ marginTop: 14, padding: 16, borderRadius: 10, background: scanResult.found ? "#f0fdf4" : "#fff7ed", border: `1px solid ${scanResult.found ? "#bbf7d0" : "#fed7aa"}` }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: scanResult.found ? "#166534" : "#92400e", margin: "0 0 8px" }}>{scanResult.spoken}</p>
-              {scanResult.found && <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px" }}>Confidence: {(scanResult.confidence * 100).toFixed(0)}%</p>}
-              {scanResult.found && (
-                <button onClick={markFound} style={{ width: "100%", padding: "9px 0", borderRadius: 8, border: "none", background: "#22c55e", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                  ✓ Got it — next item
-                </button>
-              )}
+        {/* Current step */}
+        {dir && (
+          <div style={{ padding: "20px", background: "#eff6ff", borderBottom: "1px solid #bfdbfe" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: 0.8 }}>Step {dir.step} of {dir.total}</span>
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+              <span style={{ fontSize: 28 }}>{dir.dir_arrow}</span>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "#1e40af", margin: "0 0 2px" }}>{dir.dir_label}</p>
+                <p style={{ fontSize: 13, color: "#3b82f6", margin: 0 }}>→ {dir.name}</p>
+              </div>
+            </div>
+            {dir.walk?.length > 0 && (
+              <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>
+                Walk: {dir.walk.map(w => w.replace(/^Aisle \d+ - /,"")).join(" → ")}
+              </p>
+            )}
+            <div style={{ marginTop: 10 }}>
+              {dir.items.map((item, j) => (
+                <div key={j} style={{ fontSize: 12, color: "#1e40af", padding: "3px 0" }}>📦 {item}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Scan status — only shown when ocr_agent detects something */}
+        {detected && (
+          <div style={{ margin: "12px", padding: "12px 14px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #86efac" }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#166534", textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 4px" }}>Aisle Detected</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: "#15803d", margin: "0 0 2px" }}>{detected.code} — {detected.name}</p>
+            <p style={{ fontSize: 11, color: "#4ade80", margin: 0 }}>
+              {detected.node_id === dir?.target ? "✓ Correct aisle! Moving to next step..." : `Confidence: ${Math.round((detected.confidence ?? 0) * 100)}%`}
+            </p>
+          </div>
+        )}
+
+        {/* All steps list */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+          {dirs.map((d, i) => (
+            <div key={i} style={{ margin: "0 12px 3px", padding: "8px 12px", borderRadius: 8, background: i === currentStep ? "#eff6ff" : i < currentStep ? "#f0fdf4" : "#fafbfc", border: `1px solid ${i === currentStep ? "#bfdbfe" : i < currentStep ? "#bbf7d0" : "#e2e8f0"}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13 }}>{i < currentStep ? "✓" : i === currentStep ? "▶" : "○"}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: i < currentStep ? "#166534" : i === currentStep ? "#1e40af" : "#94a3b8" }}>{d.name}</span>
+                <span style={{ marginLeft: "auto", fontSize: 14 }}>{d.dir_arrow}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Agent status */}
+        <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e6ea", background: "#f8fafc" }}>
+          <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>
+            Run <code style={{ background: "#e2e8f0", padding: "1px 5px", borderRadius: 4 }}>python agents/ocr_agent.py</code> in terminal
+          </p>
+        </div>
+      </div>
+
+      {/* Right — map + live camera feed */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#f1f4f8" }}>
+
+        {/* Map */}
+        <div style={{ flex: 1, padding: "16px 16px 8px" }}>
+          <p style={{ color: "#64748b", fontSize: 12, fontWeight: 600, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.8 }}>
+            Live Route — scanning for <strong style={{ color: "#2563eb" }}>
+              {dir ? (!isNaN(dir.target) ? `A${dir.target}` : dir.target.toUpperCase()) : "—"}
+            </strong>
+          </p>
+          <RouteMap nodes={mapData.nodes||[]} edges={mapData.edges||[]} route={route} currentNode={currentNode} />
+        </div>
+
+        {/* MJPEG stream from ocr_agent.py */}
+        <div style={{ height: 240, margin: "0 16px 16px", borderRadius: 12, overflow: "hidden", background: "#0f172a", position: "relative", flexShrink: 0 }}>
+          <img
+            src="http://localhost:8004/video_feed"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            onLoad={e  => { e.target.style.opacity = 1; }}
+            onError={e => { e.target.style.opacity = 0; }}
+          />
+          {/* Waiting overlay — shown until stream loads */}
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444", marginBottom: 10, animation: "pulse 1.5s infinite" }}/>
+            <span style={{ color: "#475569", fontSize: 13 }}>Waiting for <code style={{ background: "#1e293b", padding: "1px 6px", borderRadius: 4, color: "#94a3b8" }}>ocr_agent.py</code></span>
+          </div>
+          {/* Overlay label */}
+          <div style={{ position: "absolute", top: 10, left: 12, background: "rgba(0,0,0,0.55)", padding: "3px 10px", borderRadius: 6 }}>
+            <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 600 }}>OCR Agent — Live</span>
+          </div>
+          {/* Green border when detected */}
+          {detected && (
+            <div style={{ position: "absolute", inset: 0, border: "3px solid #4ade80", borderRadius: 12, pointerEvents: "none" }}/>
           )}
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── Root pipeline ──────────────────────────────────────────────────────────────
+// ── Root ───────────────────────────────────────────────────────────────────────
 export default function Pipeline() {
-  const [step, setStep]               = useState(0);
+  const [step, setStep]               = useState(0); // 0=chat, 1=route preview, 2=live nav
   const [ingredients, setIngredients] = useState([]);
   const [navResult, setNavResult]     = useState(null);
   const [mapData, setMapData]         = useState({ nodes: [], edges: [] });
@@ -538,21 +425,18 @@ export default function Pipeline() {
 
   return (
     <div style={{ minHeight: "calc(100vh - 57px)", background: "#f1f4f8", fontFamily: "'Inter', sans-serif" }}>
-      <StepBar current={step} />
-
       {step === 0 && (
-        <Agent0 onDone={ings => { setIngredients(ings); setStep(1); }} />
+        <ChatStep onDone={ings => { setIngredients(ings); setStep(1); }} />
       )}
       {step === 1 && (
-        <Agent2 ingredients={ingredients} mapData={mapData}
-          onStepReady={result => { setNavResult(result); setStep(2); }} />
+        <RoutePreview
+          ingredients={ingredients}
+          mapData={mapData}
+          onStart={result => { setNavResult(result); setStep(2); }}
+        />
       )}
       {step === 2 && (
-        <Agent3 navResult={navResult}
-          onConfirmed={() => setStep(3)} />
-      )}
-      {step === 3 && (
-        <Agent4 ingredients={ingredients} />
+        <LiveNav navResult={navResult} mapData={mapData} />
       )}
     </div>
   );
