@@ -450,7 +450,6 @@ def test_image(image_path: str):
 
 
 def main():
-    # ── Test image mode ───────────────────────────────────────────────────
     if "--image" in sys.argv:
         idx = sys.argv.index("--image")
         if idx + 1 < len(sys.argv):
