@@ -232,7 +232,7 @@ function DirIcon({ dir }) {
 }
 
 export default function App() {
-  const [tab, setTab]                 = useState("home");
+  const [tab, setTab]                 = useState("map");
   const [mapData, setMapData]         = useState({ nodes: [], edges: [], store: "", address: "" });
   const [items, setItems]             = useState("");
   const [result, setResult]           = useState(null);
