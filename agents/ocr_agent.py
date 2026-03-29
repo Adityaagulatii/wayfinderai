@@ -156,8 +156,6 @@ Give a short friendly navigation instruction in 1-2 sentences. Plain text only."
     except Exception:
         return f"Head to {next_name}."
 
-
-# ── Route builder / selector ───────────────────────────────────────────────
 def select_route():
     # Auto-load from Agent 2 if available
     if os.path.exists(LAST_ROUTE):
