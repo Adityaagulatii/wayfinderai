@@ -55,7 +55,7 @@ def match_text(texts: list[tuple[str, float]]) -> tuple[str | None, str | None, 
     Ignores all other text — fast O(1) table lookup per token.
     """
     for text, conf in texts:
-        if conf < 0.25:
+        if conf < 0.10:
             continue
         m = _AISLE_RE.search(text)
         if m:
@@ -148,7 +148,7 @@ def match_yolo(results) -> tuple[str | None, str | None, float]:
             conf  = float(box.conf[0])
             cls   = result.names[int(box.cls[0])]
             node  = YOLO_TO_NODE.get(cls.lower())
-            if node and conf > 0.45 and conf > best_conf:
+            if node and conf > 0.15 and conf > best_conf:
                 best_conf = conf
                 best_node = node
                 best_cls  = cls
@@ -425,7 +425,7 @@ def draw_overlay(frame, ocr_results, navigator, detected, yolo_results=None):
 
     # OCR boxes — green (sign text detected)
     for (bbox, text, prob) in ocr_results:
-        if prob > 0.25:
+        if prob > 0.10:
             pts = np.array(bbox, dtype=np.int32)
             cv2.polylines(frame, [pts], True, (0, 255, 0), 2)
             cv2.putText(frame, f"{text} ({prob:.2f})",
@@ -438,7 +438,7 @@ def draw_overlay(frame, ocr_results, navigator, detected, yolo_results=None):
             for box in result.boxes:
                 conf = float(box.conf[0])
                 cls  = result.names[int(box.cls[0])]
-                if conf > 0.35:
+                if conf > 0.15:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     node  = YOLO_TO_NODE.get(cls.lower())
                     color = (0, 140, 255) if node else (160, 160, 160)
@@ -520,7 +520,7 @@ def test_image(image_path: str):
         for box in result.boxes:
             conf = float(box.conf[0])
             cls  = result.names[int(box.cls[0])]
-            if conf > 0.35:
+            if conf > 0.15:
                 any_yolo = True
                 node = YOLO_TO_NODE.get(cls.lower())
                 if node:
@@ -583,7 +583,7 @@ def main():
             break
         frame_count += 1
 
-        if frame_count % 10 == 0:
+        if frame_count % 5 == 0:
             # Downscale to 50% for faster OCR — sign text is large enough
             small       = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
             results     = reader.readtext(small, allowlist="A0123456789")
