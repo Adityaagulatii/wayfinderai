@@ -171,6 +171,7 @@ NavCog is the most technically comparable system. It uses BLE beacons + manual f
 - Store graph building triggered once per store per day via background job, results cached in Redis
 - Product cache pre-warmed nightly via Kroger API batch pull
 - Horizontal scaling: stateless FastAPI instances behind a load balancer — each instance loads its own graph on startup
+- Pre-computing all 2,800+ stores: a nightly worker iterates all Kroger store IDs, calls `build_graph()` for each, and writes results to object storage keyed by `store_id`. At request time the API fetches the pre-built graph in one read — zero live API calls during navigation. Full pre-warm ≈ 90 minutes once; subsequent runs are incremental updates only.
 
 **API cost at scale:** Kroger API ~1 call per product search, capped via 24-hour product cache. At 1,000 daily users × 10 items each = 10,000 calls/day, well within free tier limits.
 
