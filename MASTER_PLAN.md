@@ -205,6 +205,8 @@ Any developer can build on top of this: a smart glasses app, a mobile app, a kio
 - Independence: eliminates need to bring a sighted companion for grocery shopping
 - Scale: 2,800+ Kroger locations × 2 grocery trips/week per user = **800M+ assisted shopping trips/year** at full deployment
 
+**Target user profile:** Primary users are smartphone owners (iOS/Android) with functional vision loss who use headphones or earbuds. The voice-only interface is designed for users who cannot read screen text. Users with combined vision and hearing impairments are not the primary target for v1.0 — a future vibration/haptic feedback layer is noted in the v4.0 roadmap for that profile.
+
 **Validation path:** Pilot with one visually impaired user at the Cincinnati Kroger on Court St (store pre-loaded in demo). Measurable: time-to-find-product, number of wrong turns, user confidence rating.
 
 ---
