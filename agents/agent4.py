@@ -1,6 +1,6 @@
 """
 Agent 4 — Product Finder Agent
---------------------------------
+
 Uses YOLO-World (open vocabulary) to find a product on a store shelf.
 Only accepts products that exist in the store's NODE_MAP inventory.
 
