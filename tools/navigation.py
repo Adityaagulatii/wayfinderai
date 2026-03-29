@@ -169,6 +169,12 @@ _EDGES = [
 
 
 def build_graph(departments: list[dict]) -> nx.DiGraph:
+    """Build a weighted directed navigation graph from Kroger department data.
+
+    Nodes are department IDs with name, audio description, and (x, y) position.
+    Edges are weighted by physical walking distance (weight 1 = ~15ft segment).
+    Missing nodes are silently skipped — graph degrades gracefully with partial API data.
+    """
     G = nx.DiGraph()
     dept_map = {d["department_id"]: d["name"] for d in departments}
 
