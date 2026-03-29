@@ -41,7 +41,6 @@ class _MJPEGHandler(BaseHTTPRequestHandler):
 def _start_stream():
     HTTPServer(("0.0.0.0", STREAM_PORT), _MJPEGHandler).serve_forever()
 
-# ── Config ─────────────────────────────────────────────────────────────────
 GRAPH_PATH     = os.path.join(os.path.dirname(__file__), "..", "data", "store_graph.json")
 SIGN_MAP_PATH  = os.path.join(os.path.dirname(__file__), "..", "data", "sign_map.json")
 MEMORY_PATH    = os.path.join(os.path.dirname(__file__), "..", "data", "nav_memory.json")
