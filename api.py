@@ -277,6 +277,39 @@ async def scan(product: str = Form(...), file: UploadFile = File(...)):
         return {"found": False, "spoken": str(e)}
 
 
+# ── GET /scan/demo ───────────────────────────────────────────────────────────
+# Demo: run YOLO on a saved test shelf image — no file upload needed
+
+@app.get("/scan/demo")
+def scan_demo(product: str = "spaghetti"):
+    import cv2 as _cv2
+    path = os.path.join(os.path.dirname(__file__), "data", "test_shelf.jpg")
+    frame = _cv2.imread(path)
+    if frame is None:
+        return {"found": False, "spoken": "No test image found at data/test_shelf.jpg"}
+    h, w = frame.shape[:2]
+    from ultralytics import YOLO as _YOLO
+    model = _YOLO("yolov8s-worldv2.pt")
+    model.set_classes([product.lower()])
+    results = model(frame, conf=0.25, verbose=False)
+    boxes = results[0].boxes
+    if boxes and len(boxes) > 0:
+        best = max(boxes, key=lambda b: float(b.conf[0]))
+        x1, y1, x2, y2 = map(int, best.xyxy[0])
+        cx, cy = (x1+x2)/2, (y1+y2)/2
+        side = "left side"   if cx < w*0.33 else ("right side" if cx > w*0.66 else "center")
+        row  = "top shelf"   if cy < h*0.33 else ("bottom shelf" if cy > h*0.66 else "middle shelf")
+        return {
+            "found":      True,
+            "product":    product,
+            "row":        row,
+            "side":       side,
+            "spoken":     f"{product} found. {row}, {side}.",
+            "confidence": round(float(best.conf[0]), 2),
+        }
+    return {"found": False, "spoken": f"Could not find {product} on this shelf."}
+
+
 # ── POST /ocr ─────────────────────────────────────────────────────────────────
 # Teammate test: upload a photo of an aisle sign → returns detected aisle code
 

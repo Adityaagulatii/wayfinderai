@@ -402,24 +402,19 @@ function LiveNav({ navResult, mapData }) {
     }
   }, [done]);
 
-  const fileInputRef = useRef(null);
-
-  async function scanShelf(file) {
+  async function scanShelf() {
     if (!dir || scanning) return;
     const itemName = dir.items?.[0]?.split(" ")[0] ?? "product";
     setScanning(true); setScanResult(null);
     try {
-      const fd = new FormData();
-      fd.append("product", itemName);
-      fd.append("file", file, "frame.jpg");
-      const res  = await fetch(`${API}/scan`, { method: "POST", body: fd });
+      const res  = await fetch(`${API}/scan/demo?product=${encodeURIComponent(itemName)}`);
       const data = await res.json();
       setScanResult(data);
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(data.spoken);
       u.lang = "en-US"; u.rate = 1.05;
       window.speechSynthesis.speak(u);
-    } catch (e) { setScanResult({ found: false, spoken: "Scan failed." }); }
+    } catch { setScanResult({ found: false, spoken: "Scan failed." }); }
     setScanning(false);
   }
 
@@ -464,12 +459,8 @@ function LiveNav({ navResult, mapData }) {
             </div>
 
             {/* Demo controls */}
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment"
-              style={{ display: "none" }}
-              onChange={e => { if (e.target.files?.[0]) scanShelf(e.target.files[0]); e.target.value = ""; }}
-            />
             <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-              <button onClick={() => fileInputRef.current?.click()} disabled={scanning} style={{
+              <button onClick={scanShelf} disabled={scanning} style={{
                 flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
                 background: scanning ? "#e2e8f0" : "#7c3aed", color: scanning ? "#94a3b8" : "#fff",
                 fontSize: 12, fontWeight: 700, cursor: scanning ? "not-allowed" : "pointer", fontFamily: "inherit",
