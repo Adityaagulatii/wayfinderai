@@ -1,6 +1,5 @@
 """
 Agent 0 — Smart Ingredient Extractor
--------------------------------------
 Pipeline: Agent 1 (Store Builder) -> Agent 0 (this) -> Agent 2 (Navigator)
 
 Takes ANY natural language request and produces a clean grocery list
