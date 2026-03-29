@@ -76,37 +76,60 @@ function RouteMap({ nodes, edges, route, currentNode }) {
   );
 }
 
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95; u.pitch = 1;
+  window.speechSynthesis.speak(u);
+}
+
 // ── Step indicator ─────────────────────────────────────────────────────────────
 const STEPS = [
-  { id: 0, label: "Agent 0", desc: "Extract Ingredients" },
-  { id: 1, label: "Agent 2", desc: "Navigate" },
-  { id: 2, label: "Agent 3", desc: "Scan Aisle Sign" },
-  { id: 3, label: "Agent 4", desc: "Find on Shelf" },
+  { id: 0, label: "Agent 0", desc: "Extract Ingredients", icon: "🧠" },
+  { id: 1, label: "Agent 2", desc: "Navigate",            icon: "🗺️" },
+  { id: 2, label: "Agent 3", desc: "Scan Aisle Sign",     icon: "📷" },
+  { id: 3, label: "Agent 4", desc: "Find on Shelf",       icon: "🔍" },
 ];
 
 function StepBar({ current }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", padding: "20px 32px", background: "#fff", borderBottom: "1px solid #e2e6ea" }}>
+    <div style={{ display: "flex", alignItems: "center", padding: "16px 40px", background: "#fff", borderBottom: "1px solid #e2e6ea", gap: 0 }}>
       {STEPS.map((s, i) => (
         <div key={s.id} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : 0 }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 80 }}>
             <div style={{
-              width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 700, fontSize: 13,
-              background: current > s.id ? "#22c55e" : current === s.id ? "#2563eb" : "#e2e8f0",
+              width: 40, height: 40, borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 700, fontSize: current === s.id ? 18 : 14,
+              background: current > s.id
+                ? "linear-gradient(135deg,#22c55e,#16a34a)"
+                : current === s.id
+                  ? "linear-gradient(135deg,#2563eb,#7c3aed)"
+                  : "#f1f5f9",
               color: current >= s.id ? "#fff" : "#94a3b8",
-              border: current === s.id ? "2px solid #1d4ed8" : "2px solid transparent",
+              border: current === s.id ? "2.5px solid #1d4ed8" : "2.5px solid transparent",
+              boxShadow: current === s.id ? "0 0 0 4px rgba(37,99,235,0.12)" : "none",
               transition: "all 0.3s",
             }}>
-              {current > s.id ? "✓" : s.id + 1}
+              {current > s.id ? "✓" : s.icon}
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: current === s.id ? "#2563eb" : current > s.id ? "#22c55e" : "#94a3b8" }}>{s.label}</div>
-              <div style={{ fontSize: 10, color: "#94a3b8" }}>{s.desc}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: current === s.id ? "#2563eb" : current > s.id ? "#16a34a" : "#94a3b8" }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap" }}>{s.desc}</div>
             </div>
           </div>
           {i < STEPS.length - 1 && (
-            <div style={{ flex: 1, height: 2, margin: "0 12px", marginBottom: 24, background: current > s.id ? "#22c55e" : "#e2e8f0", transition: "background 0.3s" }} />
+            <div style={{
+              flex: 1, height: 3, margin: "0 8px", marginBottom: 26,
+              borderRadius: 2,
+              background: current > s.id
+                ? "linear-gradient(90deg,#22c55e,#16a34a)"
+                : "#e2e8f0",
+              transition: "background 0.4s",
+            }} />
           )}
         </div>
       ))}
