@@ -38,7 +38,6 @@ args = parser.parse_args()
 
 PRODUCT = args.product.lower().strip()
 
-# ── Validate / menu ────────────────────────────────────────────────────────
 if not PRODUCT:
     print("\nWayfinderAI — Agent 4: Product Finder")
     print("=" * 45)
