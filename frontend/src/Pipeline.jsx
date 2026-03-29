@@ -120,18 +120,44 @@ function Agent0({ onDone }) {
   const [loading, setLoading]       = useState(false);
   const [result, setResult]         = useState(null);
   const [listening, setListening]   = useState(false);
+  const [listenError, setListenError] = useState("");
   const recognitionRef              = useRef(null);
 
   function startListen() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("Speech recognition not supported in this browser."); return; }
+    if (!SR) { setListenError("Use Chrome for voice input."); return; }
+
+    if (recognitionRef.current) { recognitionRef.current.stop(); return; }
+
     const r = new SR();
-    r.lang = "en-US"; r.interimResults = false;
-    r.onresult = e => { setInput(e.results[0][0].transcript); setListening(false); };
-    r.onerror  = ()  => setListening(false);
-    r.onend    = ()  => setListening(false);
+    r.lang = "en-US";
+    r.interimResults = true;
+    r.continuous = false;
+
+    r.onresult = e => {
+      const transcript = Array.from(e.results).map(res => res[0].transcript).join("");
+      setInput(transcript);
+      setListenError("");
+    };
+
+    r.onerror = e => {
+      const msg = {
+        "not-allowed":  "Microphone permission denied.",
+        "no-speech":    "No speech detected — try again.",
+        "network":      "Network error — use Chrome browser.",
+        "audio-capture":"No microphone found.",
+      }[e.error] || `Error: ${e.error}`;
+      setListenError(msg);
+      setListening(false);
+      recognitionRef.current = null;
+    };
+
+    r.onend = () => { setListening(false); recognitionRef.current = null; };
+
     recognitionRef.current = r;
-    r.start(); setListening(true);
+    r.start();
+    setListening(true);
+    setListenError("");
   }
 
   async function extract() {
@@ -157,12 +183,20 @@ function Agent0({ onDone }) {
           onKeyDown={e => e.key === "Enter" && extract()}
           placeholder="e.g. carbonara for 4, vegan dinner, game day snacks..."
           style={{ flex: 1, padding: "12px 16px", borderRadius: 10, border: "1px solid #e2e6ea", background: "#f8fafc", color: "#1e293b", fontSize: 14, outline: "none", fontFamily: "inherit" }} />
-        <button onClick={startListen} title="Speak" style={{
-          padding: "0 14px", borderRadius: 10, border: "1px solid #e2e6ea",
-          background: listening ? "#eff6ff" : "#f8fafc", color: listening ? "#2563eb" : "#94a3b8", cursor: "pointer", fontSize: 18,
-        }}>🎤</button>
+        <button onClick={startListen} title={listening ? "Stop" : "Speak"} style={{
+          padding: "0 14px", borderRadius: 10,
+          border: `1px solid ${listening ? "#2563eb" : "#e2e6ea"}`,
+          background: listening ? "#eff6ff" : "#f8fafc",
+          color: listening ? "#2563eb" : "#94a3b8",
+          cursor: "pointer", fontSize: 18,
+        }}>{listening ? "⏹" : "🎤"}</button>
       </div>
-      {listening && <p style={{ color: "#2563eb", fontSize: 13, margin: "0 0 12px" }}>Listening...</p>}
+      {listening && (
+        <p style={{ color: "#2563eb", fontSize: 13, margin: "0 0 12px" }}>
+          🔴 Listening — speak now, click ⏹ to stop
+        </p>
+      )}
+      {listenError && <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 12px" }}>{listenError}</p>}
 
       <button onClick={extract} disabled={loading || !input.trim()} style={{
         width: "100%", padding: "12px 0", borderRadius: 10, border: "none",
@@ -211,25 +245,40 @@ function Agent0({ onDone }) {
 
 // ── Agent 2 — Navigate ─────────────────────────────────────────────────────────
 function Agent2({ ingredients, mapData, onStepReady }) {
-  const [result, setResult]         = useState(null);
-  const [loading, setLoading]       = useState(false);
+  const [result, setResult]           = useState(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const activeStepRef                 = useRef(null);
 
   useEffect(() => {
     if (ingredients.length) doNavigate();
   }, []);
 
+  useEffect(() => {
+    if (activeStepRef.current) {
+      activeStepRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [currentStep]);
+
   async function doNavigate() {
-    setLoading(true);
-    const res = await fetch(`${API}/navigate`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: ingredients }),
-    });
-    const data = await res.json();
-    setResult(data); setLoading(false);
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch(`${API}/navigate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: ingredients }),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      setResult(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const currentNode = result?.route?.[currentStep] ?? "entrance";
+  const currentNode = result?.route?.[Math.min(currentStep, (result?.route?.length ?? 1) - 1)] ?? "entrance";
   const directions  = result?.directions ?? [];
 
   return (
@@ -249,13 +298,22 @@ function Agent2({ ingredients, mapData, onStepReady }) {
         </div>
 
         {loading && <p style={{ color: "#94a3b8", padding: 20, fontSize: 13 }}>Finding best route...</p>}
+        {error && (
+          <div style={{ margin: 16, padding: 14, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
+            <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 10px" }}>Failed: {error}</p>
+            <button onClick={doNavigate} style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              Retry
+            </button>
+          </div>
+        )}
 
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
           {directions.map((d, i) => {
             const isActive = result?.route?.indexOf(d.target) === currentStep;
             const dirColor = d.direction === "TL" ? "#d97706" : d.direction === "TR" ? "#2563eb" : "#64748b";
             return (
-              <div key={i} onClick={() => setCurrentStep(result.route.indexOf(d.target))}
+              <div key={i} ref={isActive ? activeStepRef : null}
+                onClick={() => setCurrentStep(result.route.indexOf(d.target))}
                 style={{ margin: "0 12px 4px", padding: "10px 12px", borderRadius: 10, cursor: "pointer", background: isActive ? "#eff6ff" : "#fafbfc", border: `1px solid ${isActive ? "#bfdbfe" : "#e2e8f0"}` }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

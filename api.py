@@ -156,9 +156,9 @@ def navigate(req: NavRequest):
             seg_ids = [s["node_id"] for s in seg]
             full_path.extend(seg_ids[1:])
             # Direction at the target node using real geometry
-            prev_id = seg_ids[-2] if len(seg_ids) >= 2 else current
-            next_stop = ordered[step_num] if step_num < len(ordered) else "checkout"
-            direction = _compute_direction(prev_id, target, next_stop)
+            prev_id      = seg_ids[-2] if len(seg_ids) >= 2 else current
+            next_stop_id = ordered[step_num] if step_num < len(ordered) else "checkout"
+            direction    = _compute_direction(prev_id, target, next_stop_id)
             directions.append({
                 "step":      step_num,
                 "total":     total,
