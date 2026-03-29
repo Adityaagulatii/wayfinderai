@@ -14,6 +14,7 @@ import cv2
 import os
 import sys
 import argparse
+from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -108,9 +109,24 @@ frame_count  = 0
 last_message = f"Scanning for '{PRODUCT}'... point camera at shelf"
 found_count  = 0
 CONFIRM_FRAMES = 3
+last_boxes   = []   # (x1,y1,x2,y2, cls_name, conf) — persisted across frames
 
 
-def shelf_position(x1, y1, x2, y2, fw, fh) -> tuple[str, str]:
+def shelf_position(x1: int, y1: int, x2: int, y2: int, fw: int, fh: int) -> tuple[str, str]:
+    """Infer shelf row and side from bounding box centroid relative to frame dimensions.
+
+    Divides the frame into thirds both horizontally (left/center/right side)
+    and vertically (top/middle/bottom shelf) using the box centroid.
+
+    Args:
+        x1, y1: Top-left corner of bounding box.
+        x2, y2: Bottom-right corner of bounding box.
+        fw: Frame width in pixels.
+        fh: Frame height in pixels.
+
+    Returns:
+        Tuple of (row, side) e.g. ("middle shelf", "left side").
+    """
     cx = (x1 + x2) / 2
     cy = (y1 + y2) / 2
     side = "left side"  if cx < fw * 0.33 else ("right side" if cx > fw * 0.66 else "center")
@@ -127,25 +143,22 @@ while True:
     h, w = frame.shape[:2]
 
     if frame_count % 5 == 0:
-        results = model(frame, conf=0.25, verbose=False)
-        boxes   = results[0].boxes
+        results   = model(frame, conf=0.03, verbose=False)
+        boxes     = results[0].boxes
+        last_boxes = []
 
-        # Draw ALL detections in the frame (any inventory item)
         for box in (boxes or []):
-            conf     = float(box.conf[0])
+            conf_val = float(box.conf[0])
             cls_name = results[0].names[int(box.cls[0])]
             x1, y1, x2, y2 = map(int, box.xyxy[0])
+            last_boxes.append((x1, y1, x2, y2, cls_name, conf_val))
 
             if cls_name == PRODUCT:
-                # Target product — green box
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
-                cv2.putText(frame, f"{cls_name.upper()} {conf:.0%}",
-                            (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 row, side = shelf_position(x1, y1, x2, y2, w, h)
                 found_count += 1
                 last_message = f"FOUND: {PRODUCT}  |  {row}, {side}"
-                if found_count == CONFIRM_FRAMES:   # trigger once on confirmation
-                    print(f">>> FOUND: {PRODUCT.upper()}  |  {row}, {side}  (conf {conf:.0%})")
+                if found_count == CONFIRM_FRAMES:
+                    print(f">>> FOUND: {PRODUCT.upper()}  |  {row}, {side}  (conf {conf_val:.0%})")
                     print(f"    Expected: {EXPECTED_SHELF}, {EXPECTED_SIDE} in {AISLE_NAME}")
                     beep("found")
                     found_msg = narrate(
@@ -154,15 +167,21 @@ while True:
                         "Tell the visually impaired shopper exactly where to reach to grab the product using clear spatial directions."
                     )
                     speak(found_msg, block=False)
-            else:
-                # Other inventory item nearby — gray box
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (160, 160, 160), 1)
-                cv2.putText(frame, f"{cls_name} {conf:.0%}",
-                            (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1)
 
         if not boxes or len(boxes) == 0:
             found_count  = 0
             last_message = f"Scanning for '{PRODUCT}'... keep moving camera"
+
+    # Draw persisted boxes on every frame
+    for (x1, y1, x2, y2, cls_name, conf_val) in last_boxes:
+        if cls_name == PRODUCT:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+            cv2.putText(frame, f"{cls_name.upper()} {conf_val:.0%}",
+                        (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        else:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (160, 160, 160), 1)
+            cv2.putText(frame, f"{cls_name} {conf_val:.0%}",
+                        (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1)
 
     # ── Overlay ────────────────────────────────────────────────────────────
     is_found = "FOUND" in last_message

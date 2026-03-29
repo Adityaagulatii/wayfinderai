@@ -8,17 +8,18 @@ Built for a hackathon — fully functional, runs locally, uses real Kroger API d
 ## How It Works
 
 ```
-Agent 1  →  Agent 0  →  Agent 2  →  Agent 3
-Store       Chatbot      Route        Camera
-Builder     (llama3.2)   Optimizer    (EasyOCR + YOLO)
+Agent 1  →  Agent 0  →  Agent 2  →  Agent 3  →  Agent 4
+Store       Chatbot      Route        Camera       Shelf
+Builder     (llama3.2)   Optimizer    (EasyOCR)    (YOLO-World)
 ```
 
-Four agents run in sequence every shopping session:
+Five agents run in sequence every shopping session:
 
 1. **Agent 1** builds a live navigation graph from the Kroger API
 2. **Agent 0** chats with the user to build a verified grocery list
 3. **Agent 2** finds the fastest route and gives step-by-step directions with a live minimap
-4. **Agent 3** uses the phone camera to read physical aisle signs and confirm the user's real-world location
+4. **Agent 3** uses the device camera to read physical aisle signs (EasyOCR) and confirm real-world location
+5. **Agent 4** scans the shelf with YOLO-World to pinpoint the exact product position ("middle shelf, left side")
 
 ---
 
@@ -209,7 +210,7 @@ Get a free Kroger API key at: https://developer.kroger.com
 ollama pull llama3.2
 ```
 
-**4. Run the full pipeline (Agents 1 → 0 → 2):**
+**4. Run the full voice pipeline (Agents 1 → 0 → 2):**
 ```bash
 python agents/chatbot.py
 ```
@@ -217,8 +218,25 @@ python agents/chatbot.py
 **5. Run Agent 3 — live camera aisle reader (requires webcam):**
 ```bash
 python agents/ocr_agent.py
-# Point camera at an aisle sign — reads number, shows direction
+# Select destination by number, point camera at printed aisle sign
 # Press Q to quit
+```
+
+**6. Run Agent 4 — shelf product finder (requires webcam):**
+```bash
+python agents/agent4.py --product "milk"
+# Point camera at shelf — detects product and announces shelf position
+# Press Q to quit
+```
+
+**7. Run the React web interface:**
+```bash
+# Terminal 1 — backend API
+python api.py
+
+# Terminal 2 — frontend
+cd frontend && npm install && npm run dev
+# Open http://localhost:5173
 ```
 
 ---
@@ -230,26 +248,55 @@ python agents/ocr_agent.py
 The real-world "eyes" of the system. Uses the device camera to read physical aisle signs, confirm the user is at the right location, and give live directional guidance.
 
 **What it does:**
-- Opens live camera feed
-- EasyOCR reads text from aisle signs every 10 frames
-- Matches patterns: `AISLE 5`, `A5`, standalone numbers
-- YOLO detects objects in the frame for visual context
-- Determines direction from sign position in frame:
-  - Sign on left → `Turn LEFT`
-  - Sign on right → `Turn RIGHT`
-  - Sign centered → `Go STRAIGHT`
-- Estimates distance from sign height in frame: `Close`, `Keep going`, `Far away`
-- Displays direction overlay on screen + prints to terminal
+- Opens live camera feed (webcam or phone)
+- EasyOCR reads aisle signs every 5 frames on a 50%-downscaled image for real-time speed
+- Matches format `A1`–`A42` via regex — handles `A 5`, `A05`, `A42` variations
+- Updates Navigator state when detected aisle matches the next route waypoint
+- Beeps and speaks confirmation: "You are at Aisle 5 — Snacks. Turn right toward Beverages."
+- Minimap overlay shows current position, visited path, and upcoming stops
+- Keyboard simulation mode for demo: press `1`–`9` to simulate scanning signs
 
 **Example output:**
 ```
-Aisle 3 -> Go STRAIGHT | Keep going
-Aisle 3 -> Go STRAIGHT | You are close!
+[Frame 25] OCR: ['A5']
+  => MATCHED: 'A5' -> 5 (Aisle 5 - Snacks)  conf=0.99
 ```
 
 **Requires:**
 ```bash
 pip install opencv-python easyocr ultralytics numpy
+```
+
+---
+
+---
+
+## Agent 4 — Product Finder
+
+**File:** `agents/agent4.py`
+
+Uses YOLO-World open-vocabulary detection to find a specific product on a store shelf and tell the user exactly where to reach.
+
+**What it does:**
+- Loads YOLO-World with the full store inventory as its detection vocabulary (no COCO classes)
+- Detects target product in real-time camera feed every 5 frames
+- Requires 3 consecutive confirmed detections before announcing (prevents false positives)
+- Calculates shelf position from bounding box centroid:
+  - `cx < 33%` of frame width → left side; `cx > 66%` → right side; else center
+  - `cy < 33%` of frame height → top shelf; `cy > 66%` → bottom shelf; else middle
+- Speaks exact location: "Milk found. Middle shelf, left side."
+
+**Run:**
+```bash
+python agents/agent4.py --product "milk"
+python agents/agent4.py --product "pasta"
+python agents/agent4.py   # voice-select from full inventory menu
+```
+
+**Example output:**
+```
+>>> FOUND: MILK  |  middle shelf, left side  (conf 67%)
+    Expected: middle shelf, back wall in Dairy (Refrigerated)
 ```
 
 ---
@@ -277,19 +324,26 @@ A suite of Claude-powered admin tools for store managers to set up and maintain 
 wayfinderai/
 ├── agents/
 │   ├── store_builder.py   # Agent 1 — builds nav graph from Kroger API
-│   ├── chatbot.py         # Agent 0 — LLM pre-shopping assistant
+│   ├── chatbot.py         # Agent 0 — LLM pre-shopping assistant (llama3.2)
 │   ├── navigator.py       # Agent 2 — dual-algo route optimizer
-│   ├── ocr_agent.py       # Agent 3 — camera aisle sign reader (EasyOCR + YOLO)
+│   ├── ocr_agent.py       # Agent 3 — camera aisle sign reader (EasyOCR)
+│   ├── agent4.py          # Agent 4 — YOLO-World shelf product finder
 │   └── admin_agents.py    # Admin suite — layout parser, auditor, audio generator
 ├── tools/
 │   ├── kroger.py          # Kroger API wrapper + NODE_MAP inventory
 │   ├── navigation.py      # NetworkX graph builder + Dijkstra pathfinding
 │   ├── minimap.py         # ASCII terminal minimap
+│   ├── voice.py           # pyttsx3 TTS + speech recognition
 │   └── visualizer.py      # Matplotlib store map PNG renderer
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx        # Navigate tab + Store Map tab
+│   │   ├── Pipeline.jsx   # Full 4-agent pipeline browser demo
+│   │   └── StoreLayout.jsx# Interactive store map with aisle detail
+│   └── README.md          # Frontend setup and API reference
+├── api.py                 # FastAPI backend — bridges agents to React frontend
 ├── data/
-│   └── .gitkeep           # store_graph.json + map PNGs written here at runtime
-├── store_layouts/
-│   └── kroger80slayout.png
+│   └── .gitkeep           # store_graph.json written here at runtime
 ├── .env.example
 ├── requirements.txt
 └── README.md

@@ -155,7 +155,7 @@ def navigate(req: NavRequest):
         for n in unvisited:
             try:
                 d = nx.dijkstra_path_length(_graph, current, n, weight="weight")
-            except:
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
                 d = float("inf")
             if d < best:
                 best, nearest = d, n
@@ -188,7 +188,7 @@ def navigate(req: NavRequest):
                 "dir_arrow": _DIR_ARROW[direction],
             })
             current = target
-        except:
+        except (nx.NetworkXNoPath, nx.NodeNotFound, KeyError):
             directions.append({
                 "step": step_num, "total": total,
                 "target": target, "name": target,
@@ -211,7 +211,7 @@ def navigate(req: NavRequest):
             "direction": "ST", "dir_label": "Go straight ahead", "dir_arrow": "↑",
         })
         full_path.append("exit")
-    except:
+    except (nx.NetworkXNoPath, nx.NodeNotFound):
         pass
 
     # Write route so ocr_agent.py can auto-load it
