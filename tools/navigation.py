@@ -1,5 +1,17 @@
 """
-Navigation graph — store 01400513 (Cincinnati).
+tools/navigation.py — WayfinderAI store navigation graph
+---------------------------------------------------------
+Builds a weighted directed NetworkX graph for store 01400513 (Kroger Cincinnati).
+Nodes are Kroger department IDs with 2D positions, audio descriptions, and aisle names.
+Edge weights represent physical walking distance: weight 1 ≈ 15ft, weight 2 = cross-aisle,
+weight 3 = entrance/perimeter. Dijkstra path-finding minimises actual walking distance.
+
+Public API:
+  build_graph(departments)  → nx.DiGraph
+  find_path(graph, from, to) → list[dict]
+  save(graph, path)
+  load(path) → nx.DiGraph
+
 Nodes use real Kroger API aisle numbers; items per node from batch API discovery.
 
                                                    [checkout_1]
