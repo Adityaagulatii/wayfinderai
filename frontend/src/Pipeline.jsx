@@ -82,12 +82,25 @@ function RouteMap({ nodes, edges, route, currentNode }) {
 
 // ── STEP 0: Chatbot ────────────────────────────────────────────────────────────
 function ChatStep({ onDone }) {
-  const [input, setInput]       = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [result, setResult]     = useState(null);
+  const [input, setInput]         = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [result, setResult]       = useState(null);
   const [listening, setListening] = useState(false);
   const [listenError, setListenError] = useState("");
-  const recognitionRef          = useRef(null);
+  const [status, setStatus]       = useState("");
+  const recognitionRef            = useRef(null);
+  const inputRef                  = useRef("");  // mirror for async callbacks
+
+  useEffect(() => { inputRef.current = input; }, [input]);
+
+  function speak(text, onEnd) {
+    if (!window.speechSynthesis) { onEnd?.(); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US"; u.rate = 1.05; u.pitch = 1.0;
+    if (onEnd) u.onend = onEnd;
+    window.speechSynthesis.speak(u);
+  }
 
   function startListen() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -95,35 +108,62 @@ function ChatStep({ onDone }) {
     if (recognitionRef.current) { recognitionRef.current.stop(); return; }
     const r = new SR();
     r.lang = "en-US"; r.interimResults = true; r.continuous = false;
-    r.onresult = e => { setInput(Array.from(e.results).map(x => x[0].transcript).join("")); setListenError(""); };
-    r.onerror  = e => { setListenError({ "not-allowed": "Mic denied.", "network": "Use Chrome.", "no-speech": "No speech detected." }[e.error] || `Error: ${e.error}`); setListening(false); recognitionRef.current = null; };
-    r.onend    = () => { setListening(false); recognitionRef.current = null; };
+    r.onresult = e => {
+      const t = Array.from(e.results).map(x => x[0].transcript).join("");
+      setInput(t); inputRef.current = t; setListenError("");
+    };
+    r.onerror = e => {
+      setListenError({ "not-allowed": "Mic denied.", "network": "Use Chrome.", "no-speech": "No speech detected." }[e.error] || `Error: ${e.error}`);
+      setListening(false); recognitionRef.current = null;
+    };
+    r.onend = () => {
+      setListening(false); recognitionRef.current = null;
+      if (inputRef.current.trim()) extractRef.current();  // auto-submit on mic stop
+    };
     recognitionRef.current = r; r.start(); setListening(true); setListenError("");
-  }
-
-  function speak(text) {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US"; u.rate = 1.0; u.pitch = 1.0;
-    window.speechSynthesis.speak(u);
+    setStatus("Listening...");
   }
 
   async function extract() {
-    if (!input.trim()) return;
-    setLoading(true); setResult(null);
+    const query = inputRef.current || input;
+    if (!query.trim()) return;
+    setLoading(true); setResult(null); setStatus("Finding ingredients...");
     try {
-      const res  = await fetch(`${API}/extract`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: input }) });
+      const res  = await fetch(`${API}/extract`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: query }) });
       const data = await res.json();
       setResult(data);
       if (data.ingredients?.length) {
-        const msg = (data.intro ? data.intro + " " : "") +
-          `I found ${data.ingredients.length} ingredients: ${data.ingredients.join(", ")}.`;
-        speak(msg);
+        const ings = data.ingredients;
+        const msg = (data.intro ? data.intro + "  " : "") +
+          `I found ${ings.length} ingredients: ${ings.join(", ")}. Say yes to build your route.`;
+        setStatus("Say \"yes\" to build your route...");
+        speak(msg, () => {
+          // listen for confirmation
+          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SR) { onDone(ings); return; }
+          const r = new SR();
+          r.lang = "en-US"; r.interimResults = false; r.continuous = false;
+          r.onresult = e => {
+            const said = e.results[0][0].transcript.toLowerCase();
+            if (/yes|yeah|yep|ok|okay|sure|go|start|build|navigate/.test(said)) {
+              onDone(ings);
+            } else {
+              setStatus("Didn't catch that — say yes to continue, or type a new recipe.");
+              setResult(null);
+            }
+          };
+          r.onerror = () => onDone(ings);  // fallback: advance anyway
+          r.start();
+          setListening(true);
+          r.onend = () => setListening(false);
+        });
       }
-    } catch { setResult({ error: "Could not reach backend." }); }
+    } catch { setResult({ error: "Could not reach backend." }); setStatus(""); }
     setLoading(false);
   }
+
+  const extractRef = useRef(extract);
+  useEffect(() => { extractRef.current = extract; });
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto", padding: "48px 24px" }}>
@@ -131,7 +171,7 @@ function ChatStep({ onDone }) {
       <div style={{ textAlign: "center", marginBottom: 32 }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#eff6ff", border: "2px solid #bfdbfe", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 24 }}>🛒</div>
         <h2 style={{ color: "#1e293b", fontSize: 22, fontWeight: 700, margin: "0 0 6px" }}>What would you like to make?</h2>
-        <p style={{ color: "#94a3b8", fontSize: 14, margin: 0 }}>Tell me a recipe or list items — I'll build your grocery list.</p>
+        {status && <p style={{ color: "#2563eb", fontSize: 14, margin: 0, fontWeight: 500 }}>{status}</p>}
       </div>
 
       {/* Input */}
@@ -165,17 +205,13 @@ function ChatStep({ onDone }) {
           )}
           <div style={{ padding: 16, background: "#fff", border: "1px solid #e2e6ea", borderRadius: 12 }}>
             <p style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 12px" }}>
-              {result.ingredients.length} ingredients found
+              {result.ingredients.length} ingredients found — say "yes" to build route
             </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {result.ingredients.map((ing, i) => (
                 <span key={i} style={{ padding: "5px 14px", background: "#eff6ff", color: "#2563eb", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #bfdbfe" }}>{ing}</span>
               ))}
             </div>
-            <button onClick={() => onDone(result.ingredients)} style={{
-              width: "100%", padding: "13px 0", borderRadius: 12, border: "none",
-              background: "#2563eb", color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}>Get Navigation Route →</button>
           </div>
         </div>
       )}
@@ -203,14 +239,30 @@ function RoutePreview({ ingredients, mapData, onStart }) {
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setResult(data);
-      if (data.total_price != null) {
-        const u = new SpeechSynthesisUtterance(
-          `Your route is ready. Estimated total: $${data.total_price.toFixed(2)} for ${ingredients.length} ingredients.`
-        );
-        u.lang = "en-US"; u.rate = 1.0;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      }
+      const msg = data.total_price != null
+        ? `Your route is ready. Estimated total: $${data.total_price.toFixed(2)} for ${ingredients.length} ingredients. Say yes to start navigation.`
+        : `Your route is ready for ${ingredients.length} ingredients. Say yes to start navigation.`;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(msg);
+      u.lang = "en-US"; u.rate = 1.05;
+      u.onend = () => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { onStart(data); return; }
+        const r = new SR();
+        r.lang = "en-US"; r.interimResults = false; r.continuous = false;
+        r.onresult = e => {
+          const said = e.results[0][0].transcript.toLowerCase();
+          if (/yes|yeah|yep|ok|okay|sure|go|start|navigate/.test(said)) onStart(data);
+          else {
+            const retry = new SpeechSynthesisUtterance("Say yes when you are ready to start.");
+            retry.lang = "en-US"; retry.onend = () => r.start();
+            window.speechSynthesis.speak(retry);
+          }
+        };
+        r.onerror = () => onStart(data);
+        r.start();
+      };
+      window.speechSynthesis.speak(u);
     } catch (e) { setError(e.message); }
     setLoading(false);
   }
@@ -275,11 +327,8 @@ function RoutePreview({ ingredients, mapData, onStart }) {
           </div>
         )}
 
-        <div style={{ padding: "16px", borderTop: "1px solid #e2e6ea" }}>
-          <button onClick={() => onStart(result)} style={{
-            width: "100%", padding: "13px 0", borderRadius: 10, border: "none",
-            background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-          }}>Start Navigation →</button>
+        <div style={{ padding: "14px 16px", borderTop: "1px solid #e2e6ea", background: "#f0fdf4" }}>
+          <p style={{ fontSize: 12, color: "#166534", fontWeight: 600, margin: 0, textAlign: "center" }}>Say "yes" to start navigation</p>
         </div>
       </div>
 
@@ -295,34 +344,60 @@ function RoutePreview({ ingredients, mapData, onStart }) {
 // ── STEP 2: Live navigation driven by ocr_agent.py ────────────────────────────
 function LiveNav({ navResult, mapData }) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [detected, setDetected]       = useState(null); // { node_id, code, name, confidence }
+  const [detected, setDetected]       = useState(null);
+  const [scanResult, setScanResult]   = useState(null);
+  const [scanning, setScanning]       = useState(false);
 
   const dirs  = navResult?.directions ?? [];
   const route = navResult?.route      ?? [];
   const dir   = dirs[currentStep]     ?? null;
   const currentNode = route[Math.min(currentStep, route.length - 1)] ?? "entrance";
 
-  // Poll /location every 2s — written by ocr_agent.py
+  // Speak only the first step when live nav loads
   useEffect(() => {
-    const id = setInterval(async () => {
-      try {
-        const data = await fetch(`${API}/location`).then(r => r.json());
-        if (!data.node_id) return;
-        setDetected(data);
-        // Advance if scanned node appears anywhere in the remaining route
-        const remaining = route.slice(currentStep);
-        if (remaining.includes(data.node_id)) {
-          setTimeout(() => {
-            setDetected(null);
-            setCurrentStep(s => Math.min(s + 1, dirs.length - 1));
-          }, 1500);
-        }
-      } catch {}
-    }, 2000);
-    return () => clearInterval(id);
-  }, [currentStep, route, dirs.length]);
+    if (!dir) return;
+    const items = dir.items?.join(", ") ?? "";
+    const msg = `Step ${dir.step} of ${dir.total}. ${dir.dir_label} to ${dir.name}. Grab: ${items}.`;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(msg);
+      u.lang = "en-US"; u.rate = 1.05;
+      window.speechSynthesis.speak(u);
+    }
+  }, []);  // only on mount
+
 
   const done = currentStep >= dirs.length;
+
+  useEffect(() => {
+    if (done && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance("All items collected! Head to checkout. You are done. Great job!");
+      u.lang = "en-US"; u.rate = 1.0;
+      window.speechSynthesis.speak(u);
+    }
+  }, [done]);
+
+  const fileInputRef = useRef(null);
+
+  async function scanShelf(file) {
+    if (!dir || scanning) return;
+    const itemName = dir.items?.[0]?.split(" ")[0] ?? "product";
+    setScanning(true); setScanResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("product", itemName);
+      fd.append("file", file, "frame.jpg");
+      const res  = await fetch(`${API}/scan`, { method: "POST", body: fd });
+      const data = await res.json();
+      setScanResult(data);
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(data.spoken);
+      u.lang = "en-US"; u.rate = 1.05;
+      window.speechSynthesis.speak(u);
+    } catch (e) { setScanResult({ found: false, spoken: "Scan failed." }); }
+    setScanning(false);
+  }
 
   if (done) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 57px)", background: "#f1f4f8" }}>
@@ -363,6 +438,33 @@ function LiveNav({ navResult, mapData }) {
                 <div key={j} style={{ fontSize: 12, color: "#1e40af", padding: "3px 0" }}>📦 {item}</div>
               ))}
             </div>
+
+            {/* Demo controls */}
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment"
+              style={{ display: "none" }}
+              onChange={e => { if (e.target.files?.[0]) scanShelf(e.target.files[0]); e.target.value = ""; }}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button onClick={() => fileInputRef.current?.click()} disabled={scanning} style={{
+                flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
+                background: scanning ? "#e2e8f0" : "#7c3aed", color: scanning ? "#94a3b8" : "#fff",
+                fontSize: 12, fontWeight: 700, cursor: scanning ? "not-allowed" : "pointer", fontFamily: "inherit",
+              }}>{scanning ? "Scanning..." : "📷 Scan Shelf (YOLO)"}</button>
+              <button onClick={() => setCurrentStep(s => Math.min(s + 1, dirs.length - 1))} style={{
+                flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
+                background: "#0f172a", color: "#fff",
+                fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}>Next Step →</button>
+            </div>
+          </div>
+        )}
+
+        {/* YOLO scan result */}
+        {scanResult && (
+          <div style={{ margin: "12px", padding: "12px 14px", borderRadius: 10, background: scanResult.found ? "#faf5ff" : "#fef2f2", border: `1px solid ${scanResult.found ? "#c4b5fd" : "#fecaca"}` }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: scanResult.found ? "#7c3aed" : "#dc2626", textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 4px" }}>YOLO Shelf Scan</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: scanResult.found ? "#6d28d9" : "#b91c1c", margin: "0 0 2px" }}>{scanResult.spoken}</p>
+            {scanResult.found && <p style={{ fontSize: 11, color: "#8b5cf6", margin: 0 }}>Confidence: {Math.round((scanResult.confidence ?? 0) * 100)}%</p>}
           </div>
         )}
 
