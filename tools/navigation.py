@@ -198,6 +198,11 @@ def build_graph(departments: list[dict]) -> nx.DiGraph:
 
 
 def find_path(graph: nx.DiGraph, from_node: str, to_node: str) -> list[dict]:
+    """Return Dijkstra shortest path as a list of node dicts with node_id injected.
+
+    Each dict contains the node's attributes (name, audio, x, y) plus a node_id key.
+    Raises ValueError if either node is absent from the graph.
+    """
     if from_node not in graph:
         raise ValueError(f"Node not in graph: '{from_node}'. Valid: {sorted(graph.nodes())}")
     if to_node not in graph:
