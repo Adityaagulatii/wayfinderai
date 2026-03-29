@@ -201,7 +201,7 @@ def find_path(graph: nx.DiGraph, from_node: str, to_node: str) -> list[dict]:
 
 
 def serialize(graph: nx.DiGraph) -> dict:
-    return nx.node_link_data(graph, edges="links")
+    return nx.node_link_data(graph)
 
 
 def save(graph: nx.DiGraph, path: str) -> None:
