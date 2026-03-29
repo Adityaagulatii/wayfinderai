@@ -74,10 +74,6 @@ def algo_nearest_neighbor(graph: nx.DiGraph, stops: list[str]) -> tuple[list[str
     return ordered, cost
 
 
-# ---------------------------------------------------------------------------
-# Route tree builder
-# ---------------------------------------------------------------------------
-
 def _compute_direction(prev_pos, curr_pos, next_pos) -> str:
     """
     Given three (x,y) positions, return ST / TL / TR for the turn at curr.
