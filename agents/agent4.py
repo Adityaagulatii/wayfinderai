@@ -14,6 +14,7 @@ import cv2
 import os
 import sys
 import argparse
+from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -111,7 +112,21 @@ CONFIRM_FRAMES = 3
 last_boxes   = []   # (x1,y1,x2,y2, cls_name, conf) — persisted across frames
 
 
-def shelf_position(x1, y1, x2, y2, fw, fh) -> tuple[str, str]:
+def shelf_position(x1: int, y1: int, x2: int, y2: int, fw: int, fh: int) -> tuple[str, str]:
+    """Infer shelf row and side from bounding box centroid relative to frame dimensions.
+
+    Divides the frame into thirds both horizontally (left/center/right side)
+    and vertically (top/middle/bottom shelf) using the box centroid.
+
+    Args:
+        x1, y1: Top-left corner of bounding box.
+        x2, y2: Bottom-right corner of bounding box.
+        fw: Frame width in pixels.
+        fh: Frame height in pixels.
+
+    Returns:
+        Tuple of (row, side) e.g. ("middle shelf", "left side").
+    """
     cx = (x1 + x2) / 2
     cy = (y1 + y2) / 2
     side = "left side"  if cx < fw * 0.33 else ("right side" if cx > fw * 0.66 else "center")
