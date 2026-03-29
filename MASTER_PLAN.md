@@ -95,6 +95,8 @@ Output: "Pasta found. Middle shelf, left side."
 **Core deadline Hour 16:** Agents 1+2 demo-ready with fallback data
 **Stretch Hour 20:** Agents 3+4 integrated
 **Fallback:** Typed input replaces OCR if Agent 3 is incomplete
+**Agent 4 fallback:** If YOLO-World fails to detect a product (low light, occlusion, model miss), the system reads the pre-known shelf position directly from the NODE_MAP inventory: *"Pasta is expected on Aisle 2, left side, middle shelf"* — the demo path is never blocked by vision model failure.
+**Stub API contract checkpoint (Hour 6):** All three agents expose their input/output interface via the tool schema table before full implementation is complete, allowing Aditya to wire the FastAPI backend while Bhoomika and Krithika build agent internals in parallel.
 
 ---
 
