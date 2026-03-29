@@ -496,7 +496,6 @@ def main():
             ) for bbox, text, prob in results]
             texts = [(r[1], r[2]) for r in results]
 
-            # ── Terminal scan output ──────────────────────────────────────
             if texts:
                 print(f"[Frame {frame_count}] OCR: {[t for t,_ in texts]}")
             else:
