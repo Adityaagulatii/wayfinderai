@@ -81,7 +81,7 @@ function RouteMap({ nodes, edges, route, currentNode }) {
 }
 
 // ── STEP 0: Chatbot ────────────────────────────────────────────────────────────
-function ChatStep({ onDone }) {
+function ChatStep({ onDone, voiceMode, onVoiceMode }) {
   const [input, setInput]         = useState("");
   const [loading, setLoading]     = useState(false);
   const [result, setResult]       = useState(null);
@@ -121,7 +121,7 @@ function ChatStep({ onDone }) {
       if (inputRef.current.trim()) extractRef.current();  // auto-submit on mic stop
     };
     recognitionRef.current = r; r.start(); setListening(true); setListenError("");
-    setStatus("Listening...");
+    setStatus("Listening..."); onVoiceMode();
   }
 
   async function extract() {
@@ -134,29 +134,26 @@ function ChatStep({ onDone }) {
       setResult(data);
       if (data.ingredients?.length) {
         const ings = data.ingredients;
-        const msg = (data.intro ? data.intro + "  " : "") +
-          `I found ${ings.length} ingredients: ${ings.join(", ")}. Say yes to build your route.`;
-        setStatus("Say \"yes\" to build your route...");
-        speak(msg, () => {
-          // listen for confirmation
-          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-          if (!SR) { onDone(ings); return; }
-          const r = new SR();
-          r.lang = "en-US"; r.interimResults = false; r.continuous = false;
-          r.onresult = e => {
-            const said = e.results[0][0].transcript.toLowerCase();
-            if (/yes|yeah|yep|ok|okay|sure|go|start|build|navigate/.test(said)) {
-              onDone(ings);
-            } else {
-              setStatus("Didn't catch that — say yes to continue, or type a new recipe.");
-              setResult(null);
-            }
-          };
-          r.onerror = () => onDone(ings);  // fallback: advance anyway
-          r.start();
-          setListening(true);
-          r.onend = () => setListening(false);
-        });
+        if (voiceMode) {
+          const msg = (data.intro ? data.intro + "  " : "") +
+            `I found ${ings.length} ingredients: ${ings.join(", ")}. Say yes to build your route.`;
+          setStatus("Say \"yes\" to build your route...");
+          speak(msg, () => {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) { onDone(ings); return; }
+            const r = new SR();
+            r.lang = "en-US"; r.interimResults = false; r.continuous = false;
+            r.onresult = e => {
+              const said = e.results[0][0].transcript.toLowerCase();
+              if (/yes|yeah|yep|ok|okay|sure|go|start|build|navigate/.test(said)) onDone(ings);
+              else { setStatus("Say yes to continue, or type a new recipe."); setResult(null); }
+            };
+            r.onerror = () => onDone(ings);
+            r.onend = () => setListening(false);
+            r.start(); setListening(true);
+          });
+        }
+        // if not voice mode, just show result + button — no auto-advance
       }
     } catch { setResult({ error: "Could not reach backend." }); setStatus(""); }
     setLoading(false);
@@ -205,13 +202,19 @@ function ChatStep({ onDone }) {
           )}
           <div style={{ padding: 16, background: "#fff", border: "1px solid #e2e6ea", borderRadius: 12 }}>
             <p style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 12px" }}>
-              {result.ingredients.length} ingredients found — say "yes" to build route
+              {result.ingredients.length} ingredients found
             </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: voiceMode ? 0 : 20 }}>
               {result.ingredients.map((ing, i) => (
                 <span key={i} style={{ padding: "5px 14px", background: "#eff6ff", color: "#2563eb", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #bfdbfe" }}>{ing}</span>
               ))}
             </div>
+            {!voiceMode && (
+              <button onClick={() => onDone(result.ingredients)} style={{
+                width: "100%", marginTop: 16, padding: "13px 0", borderRadius: 12, border: "none",
+                background: "#2563eb", color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}>Get Navigation Route →</button>
+            )}
           </div>
         </div>
       )}
@@ -225,10 +228,12 @@ function ChatStep({ onDone }) {
 }
 
 // ── STEP 1: Route preview + confirm ───────────────────────────────────────────
-function RoutePreview({ ingredients, mapData, onStart }) {
-  const [result, setResult]   = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+function RoutePreview({ ingredients, mapData, onStart, voiceMode }) {
+  const [result, setResult]     = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
+  const [listening, setListening] = useState(false);
+  const resultRef               = useRef(null);
 
   useEffect(() => { loadRoute(); }, []);
 
@@ -238,33 +243,37 @@ function RoutePreview({ ingredients, mapData, onStart }) {
       const res  = await fetch(`${API}/navigate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: ingredients }) });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
-      setResult(data);
+      setResult(data); resultRef.current = data;
+      const suffix = voiceMode ? " Tap the mic and say yes to start navigation." : "";
       const msg = data.total_price != null
-        ? `Your route is ready. Estimated total: $${data.total_price.toFixed(2)} for ${ingredients.length} ingredients. Say yes to start navigation.`
-        : `Your route is ready for ${ingredients.length} ingredients. Say yes to start navigation.`;
+        ? `Your route is ready. Estimated total: $${data.total_price.toFixed(2)} for ${ingredients.length} ingredients.${suffix}`
+        : `Your route is ready for ${ingredients.length} ingredients.${suffix}`;
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(msg);
       u.lang = "en-US"; u.rate = 1.05;
-      u.onend = () => {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { onStart(data); return; }
-        const r = new SR();
-        r.lang = "en-US"; r.interimResults = false; r.continuous = false;
-        r.onresult = e => {
-          const said = e.results[0][0].transcript.toLowerCase();
-          if (/yes|yeah|yep|ok|okay|sure|go|start|navigate/.test(said)) onStart(data);
-          else {
-            const retry = new SpeechSynthesisUtterance("Say yes when you are ready to start.");
-            retry.lang = "en-US"; retry.onend = () => r.start();
-            window.speechSynthesis.speak(retry);
-          }
-        };
-        r.onerror = () => onStart(data);
-        r.start();
-      };
       window.speechSynthesis.speak(u);
     } catch (e) { setError(e.message); }
     setLoading(false);
+  }
+
+  function startConfirmListen() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR || !resultRef.current) return;
+    window.speechSynthesis.cancel();
+    const r = new SR();
+    r.lang = "en-US"; r.interimResults = false; r.continuous = false;
+    r.onresult = e => {
+      const said = e.results[0][0].transcript.toLowerCase();
+      if (/yes|yeah|yep|ok|okay|sure|go|start|navigate/.test(said)) {
+        onStart(resultRef.current);
+      } else {
+        const u = new SpeechSynthesisUtterance("Say yes to start navigation.");
+        u.lang = "en-US"; window.speechSynthesis.speak(u);
+      }
+    };
+    r.onerror = () => setListening(false);
+    r.onend   = () => setListening(false);
+    r.start(); setListening(true);
   }
 
   if (loading) return (
@@ -327,9 +336,24 @@ function RoutePreview({ ingredients, mapData, onStart }) {
           </div>
         )}
 
-        <div style={{ padding: "14px 16px", borderTop: "1px solid #e2e6ea", background: "#f0fdf4" }}>
-          <p style={{ fontSize: 12, color: "#166534", fontWeight: 600, margin: 0, textAlign: "center" }}>Say "yes" to start navigation</p>
-        </div>
+        {voiceMode ? (
+          <div style={{ padding: "14px 16px", borderTop: "1px solid #e2e6ea", background: "#f0fdf4", display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={startConfirmListen} style={{
+              width: 44, height: 44, borderRadius: "50%", border: `2px solid ${listening ? "#2563eb" : "#bbf7d0"}`,
+              background: listening ? "#eff6ff" : "#fff", fontSize: 20, cursor: "pointer", flexShrink: 0,
+            }}>{listening ? "⏹" : "🎤"}</button>
+            <p style={{ fontSize: 12, color: "#166534", fontWeight: 600, margin: 0 }}>
+              {listening ? "🔴 Listening — say yes" : "Tap mic and say \"yes\" to start"}
+            </p>
+          </div>
+        ) : (
+          <div style={{ padding: "16px" }}>
+            <button onClick={() => result && onStart(result)} style={{
+              width: "100%", padding: "13px 0", borderRadius: 10, border: "none",
+              background: "#2563eb", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>Start Navigation →</button>
+          </div>
+        )}
       </div>
 
       {/* Map */}
@@ -450,7 +474,7 @@ function LiveNav({ navResult, mapData }) {
                 background: scanning ? "#e2e8f0" : "#7c3aed", color: scanning ? "#94a3b8" : "#fff",
                 fontSize: 12, fontWeight: 700, cursor: scanning ? "not-allowed" : "pointer", fontFamily: "inherit",
               }}>{scanning ? "Scanning..." : "📷 Scan Shelf (YOLO)"}</button>
-              <button onClick={() => setCurrentStep(s => Math.min(s + 1, dirs.length - 1))} style={{
+              <button onClick={() => setCurrentStep(s => Math.min(s + 1, dirs.length))} style={{
                 flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
                 background: "#0f172a", color: "#fff",
                 fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
@@ -542,10 +566,11 @@ function LiveNav({ navResult, mapData }) {
 
 // ── Root ───────────────────────────────────────────────────────────────────────
 export default function Pipeline() {
-  const [step, setStep]               = useState(0); // 0=chat, 1=route preview, 2=live nav
+  const [step, setStep]               = useState(0);
   const [ingredients, setIngredients] = useState([]);
   const [navResult, setNavResult]     = useState(null);
   const [mapData, setMapData]         = useState({ nodes: [], edges: [] });
+  const [voiceMode, setVoiceMode]     = useState(false); // true once mic is first used
 
   useEffect(() => {
     fetch(`${API}/map`).then(r => r.json()).then(setMapData).catch(() => {});
@@ -554,12 +579,17 @@ export default function Pipeline() {
   return (
     <div style={{ minHeight: "calc(100vh - 57px)", background: "#f1f4f8", fontFamily: "'Inter', sans-serif" }}>
       {step === 0 && (
-        <ChatStep onDone={ings => { setIngredients(ings); setStep(1); }} />
+        <ChatStep
+          voiceMode={voiceMode}
+          onVoiceMode={() => setVoiceMode(true)}
+          onDone={ings => { setIngredients(ings); setStep(1); }}
+        />
       )}
       {step === 1 && (
         <RoutePreview
           ingredients={ingredients}
           mapData={mapData}
+          voiceMode={voiceMode}
           onStart={result => { setNavResult(result); setStep(2); }}
         />
       )}
