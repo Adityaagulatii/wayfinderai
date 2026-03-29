@@ -133,7 +133,7 @@ def voice_agent_respond(context: str, situation: str) -> str:
 
 
 def friendly_response(user_request: str, final_list: list[str]) -> str:
-    """Generate a short friendly spoken intro for the ingredient list."""
+    """Generate a short friendly spoken intro for the ingredient list"""
     items_str = ", ".join(final_list)
     prompt = f"""The user asked: "{user_request}"
 We found these ingredients at the store: {items_str}
