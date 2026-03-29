@@ -365,7 +365,7 @@ def draw_minimap(frame: np.ndarray, navigator: "Navigator") -> np.ndarray:
     frame[y1:y1+mh, x1:x1+mw] = blended
     return frame
 
-def draw_overlay(frame, ocr_results, navigator, detected):
+def draw_overlay(frame: np.ndarray, ocr_results: list, navigator: "Navigator", detected: str | None) -> np.ndarray:
     h, w = frame.shape[:2]
 
     # OCR boxes — green (sign text detected)
