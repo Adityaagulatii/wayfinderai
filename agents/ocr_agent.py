@@ -18,7 +18,7 @@ _frame_lock   = threading.Lock()
 STREAM_PORT   = 8004
 
 class _MJPEGHandler(BaseHTTPRequestHandler):
-    def log_message(self, *a): pass          # silence request logs
+    def log_message(self, *a): pass         
     def do_GET(self):
         if self.path != "/video_feed":
             self.send_response(404); self.end_headers(); return
