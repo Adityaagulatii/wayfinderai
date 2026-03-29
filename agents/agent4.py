@@ -32,7 +32,6 @@ for node_id, node_data in NODE_MAP.items():
 
 ALL_KEYWORDS = sorted(INVENTORY.keys())
 
-# ── Argument ───────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--product", type=str, default="",
                     help="Product to find. Must be in the store inventory.")
