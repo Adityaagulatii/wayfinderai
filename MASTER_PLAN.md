@@ -59,6 +59,8 @@ Output: step-by-step spoken route + `data/store_map.png`
 
 Graph edges are weighted by physical distance: standard aisle-to-aisle connections = weight 1 (~15ft segment), cross-aisle jumps = weight 2, entrance/perimeter edges = weight 3. Dijkstra respects these weights to produce routes that minimize actual walking distance, not just hop count.
 
+**Graceful degradation with incomplete API data:** If the Kroger API returns fewer departments than expected (rate limit, partial response, or store-specific gaps), `build_graph()` silently skips missing nodes and only adds edges where both endpoints exist. The navigation graph is valid as long as at least one path exists from entrance to checkout — degraded coverage rather than total failure. Pre-cached `store_graph.json` for the Cincinnati demo store is committed to the repo as a zero-API fallback.
+
 **Agent 3 — Location Confirmation Agent**
 Input: camera image of aisle sign
 Job: EasyOCR extracts aisle number (format A1–A42), updates session state. Claude Vision fallback if OCR confidence < 0.70. OCR runs every 5 frames on a 50% downscaled image for real-time performance.
@@ -93,6 +95,8 @@ Output: "Pasta found. Middle shelf, left side."
 **Core deadline Hour 16:** Agents 1+2 demo-ready with fallback data
 **Stretch Hour 20:** Agents 3+4 integrated
 **Fallback:** Typed input replaces OCR if Agent 3 is incomplete
+**Agent 4 fallback:** If YOLO-World fails to detect a product (low light, occlusion, model miss), the system reads the pre-known shelf position directly from the NODE_MAP inventory: *"Pasta is expected on Aisle 2, left side, middle shelf"* — the demo path is never blocked by vision model failure.
+**Stub API contract checkpoint (Hour 6):** All three agents expose their input/output interface via the tool schema table before full implementation is complete, allowing Aditya to wire the FastAPI backend while Bhoomika and Krithika build agent internals in parallel.
 
 ---
 

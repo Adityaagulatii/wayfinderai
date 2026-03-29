@@ -74,10 +74,6 @@ def algo_nearest_neighbor(graph: nx.DiGraph, stops: list[str]) -> tuple[list[str
     return ordered, cost
 
 
-# ---------------------------------------------------------------------------
-# Route tree builder
-# ---------------------------------------------------------------------------
-
 def _compute_direction(prev_pos, curr_pos, next_pos) -> str:
     """
     Given three (x,y) positions, return ST / TL / TR for the turn at curr.
@@ -165,11 +161,6 @@ def print_route_tree(tree: dict, indent: int = 0) -> None:
 
     for child in tree.get("children", []):
         print_route_tree(child, indent + 1)
-
-
-# ---------------------------------------------------------------------------
-# Core navigation
-# ---------------------------------------------------------------------------
 
 def navigate(items: list[str], save_map: bool = True) -> dict:
     """
@@ -392,11 +383,6 @@ def navigate(items: list[str], save_map: bool = True) -> dict:
         "route":       best_order,
         "not_found":   not_found,
     }
-
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

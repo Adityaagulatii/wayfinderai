@@ -1,6 +1,6 @@
 """
 Agent 4 — Product Finder Agent
---------------------------------
+
 Uses YOLO-World (open vocabulary) to find a product on a store shelf.
 Only accepts products that exist in the store's NODE_MAP inventory.
 
@@ -22,7 +22,6 @@ from ultralytics import YOLO
 from tools.kroger import NODE_MAP
 from tools.voice import speak, listen, beep, narrate
 
-# ── Build inventory from NODE_MAP ──────────────────────────────────────────
 # INVENTORY: keyword -> (node_id, side, shelf, aisle_name)
 INVENTORY: dict[str, tuple[str, str, str, str]] = {}
 for node_id, node_data in NODE_MAP.items():
@@ -39,7 +38,6 @@ args = parser.parse_args()
 
 PRODUCT = args.product.lower().strip()
 
-# ── Validate / menu ────────────────────────────────────────────────────────
 if not PRODUCT:
     print("\nWayfinderAI — Agent 4: Product Finder")
     print("=" * 45)

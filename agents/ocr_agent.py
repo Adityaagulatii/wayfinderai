@@ -18,7 +18,7 @@ _frame_lock   = threading.Lock()
 STREAM_PORT   = 8004
 
 class _MJPEGHandler(BaseHTTPRequestHandler):
-    def log_message(self, *a): pass          # silence request logs
+    def log_message(self, *a): pass         
     def do_GET(self):
         if self.path != "/video_feed":
             self.send_response(404); self.end_headers(); return
@@ -41,7 +41,6 @@ class _MJPEGHandler(BaseHTTPRequestHandler):
 def _start_stream():
     HTTPServer(("0.0.0.0", STREAM_PORT), _MJPEGHandler).serve_forever()
 
-# ── Config ─────────────────────────────────────────────────────────────────
 GRAPH_PATH     = os.path.join(os.path.dirname(__file__), "..", "data", "store_graph.json")
 SIGN_MAP_PATH  = os.path.join(os.path.dirname(__file__), "..", "data", "sign_map.json")
 MEMORY_PATH    = os.path.join(os.path.dirname(__file__), "..", "data", "nav_memory.json")
@@ -49,7 +48,6 @@ LAST_ROUTE     = os.path.join(os.path.dirname(__file__), "..", "data", "last_rou
 LOC_FILE       = os.path.join(os.path.dirname(__file__), "..", "data", "current_location.json")
 CAMERA_INDEX   = 0
 
-# ── Load store graph ───────────────────────────────────────────────────────
 with open(GRAPH_PATH) as f:
     _g = json.load(f)
 STORE_NODES = {n["id"]: n for n in _g["nodes"]}
@@ -107,7 +105,6 @@ def match_text(texts: list[tuple[str, float]]) -> tuple[str | None, str | None, 
     return None, None, 0
 
 
-# ── llama3.2 ───────────────────────────────────────────────────────────────
 def load_memory():
     try:
         with open(MEMORY_PATH) as f:
@@ -159,8 +156,6 @@ Give a short friendly navigation instruction in 1-2 sentences. Plain text only."
     except Exception:
         return f"Head to {next_name}."
 
-
-# ── Route builder / selector ───────────────────────────────────────────────
 def select_route():
     # Auto-load from Agent 2 if available
     if os.path.exists(LAST_ROUTE):
@@ -197,7 +192,6 @@ def select_route():
         except Exception:
             print("Invalid input")
 
-# ── Navigator ──────────────────────────────────────────────────────────────
 def _node_pos(node_id: str) -> tuple[float, float]:
     """Return (x, y) position of a node from STORE_NODES."""
     n = STORE_NODES.get(node_id, {})
@@ -291,7 +285,6 @@ class Navigator:
         nxt_name = STORE_NODES.get(nxt, {}).get("name", nxt) if nxt else ""
         return f"At: {curr}  |  Next: {nxt_name}", (0, 255, 255)
 
-# ── Minimap ────────────────────────────────────────────────────────────────
 def draw_minimap(frame, navigator):
     h, w   = frame.shape[:2]
     mw, mh = 130, min(340, h - 20)
@@ -372,7 +365,6 @@ def draw_minimap(frame, navigator):
     frame[y1:y1+mh, x1:x1+mw] = blended
     return frame
 
-# ── Draw overlay ───────────────────────────────────────────────────────────
 def draw_overlay(frame, ocr_results, navigator, detected):
     h, w = frame.shape[:2]
 
@@ -415,7 +407,6 @@ def draw_overlay(frame, ocr_results, navigator, detected):
 
     return frame
 
-# ── Main ───────────────────────────────────────────────────────────────────
 def test_image(image_path: str):
     """
     Test mode: run OCR + YOLO on a single image file and print what was detected.
@@ -459,7 +450,6 @@ def test_image(image_path: str):
 
 
 def main():
-    # ── Test image mode ───────────────────────────────────────────────────
     if "--image" in sys.argv:
         idx = sys.argv.index("--image")
         if idx + 1 < len(sys.argv):
@@ -506,7 +496,6 @@ def main():
             ) for bbox, text, prob in results]
             texts = [(r[1], r[2]) for r in results]
 
-            # ── Terminal scan output ──────────────────────────────────────
             if texts:
                 print(f"[Frame {frame_count}] OCR: {[t for t,_ in texts]}")
             else:
@@ -537,11 +526,7 @@ def main():
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
-
-        # ── Keyboard simulation for testing (no real camera needed) ──────────
-        # Press a digit key to simulate scanning that aisle sign
-        # e.g. press '9' -> simulates reading "A9" -> node 9
-        # Special: press 'c' for checkout, 'e' for exit, 'p' for produce
+        
         sim_node = None
         if ord("0") <= key <= ord("9"):
             sim_node = chr(key)                      # "0"-"9"
