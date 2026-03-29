@@ -8,13 +8,15 @@
 
 ## Vision
 
-Audio-first indoor navigation for Kroger grocery stores. User speaks a product name, hears turn-by-turn directions to the exact shelf. Zero hardware installation. Works at all 2,800+ Kroger locations from first run.
+WayfinderAI gives blind and visually-impaired shoppers the first fully-autonomous, voice-only navigation system for Kroger grocery stores — no sighted assistance required. User speaks a product name or meal idea, hears turn-by-turn directions to the exact shelf, and is guided to the precise product location by AI. Zero hardware installation. Works at all 2,800+ Kroger locations from first run.
 
 ---
 
 ## Problem
 
 Indoor GPS does not exist. Satellite signals cannot penetrate buildings. 7.6M Americans have functional vision loss. Existing solutions require either $10,000–$50,000 beacon hardware per store or a live human agent. Neither scales.
+
+**The lived experience:** Maria, a 34-year-old with retinitis pigmentosa, arrives at her local Kroger with a list for tonight's dinner. Without sighted assistance, she cannot read shelf labels, locate the pasta aisle, or confirm she picked the right product. She spends 45 minutes asking strangers for help — or simply leaves without everything she needed. This happens twice a week, every week. WayfinderAI eliminates every one of those friction points with a smartphone and headphones she already owns.
 
 The real cost of this problem: a visually impaired shopper today spends 45+ minutes navigating a grocery store with sighted assistance, pays $29+/month for human-agent services like Aira, or simply avoids independent grocery shopping altogether. WayfinderAI eliminates all three barriers.
 
@@ -67,6 +69,8 @@ Input: shelf image + product name
 Job: YOLO-World real-time detection, calculates row + side from bounding box centroid. `cx/frame_width < 0.33` = left side, `> 0.66` = right side, else center. `cy/frame_height < 0.33` = top shelf, `> 0.66` = bottom shelf, else middle. Requires 3 consecutive confirmed frames before announcing to prevent false positives.
 Output: "Pasta found. Middle shelf, left side."
 
+**Why YOLO-World over a fine-tuned YOLO:** A fine-tuned model requires thousands of labeled shelf images per product category and retraining whenever inventory changes. YOLO-World's open-vocabulary detection accepts any product name as a class at inference time — no training data, no retraining, instant compatibility with all 300,000+ Kroger products. The detection vocabulary is constrained to store inventory keywords via `model.set_classes(ALL_KEYWORDS)`, eliminating false positives from non-target products without any fine-tuning.
+
 ---
 
 ## Team Execution Plan
@@ -109,7 +113,7 @@ Output: "Pasta found. Middle shelf, left side."
 
 | Component | Technology |
 |-----------|-----------|
-| LLM orchestrator | Claude claude-sonnet-4-5 (tool use) |
+| Admin AI tools | Claude claude-sonnet-4-5 (layout parser, accessibility auditor, audio generator) |
 | Pre-shopping chatbot | Ollama llama3.2 (local) |
 | Store + product data | Kroger Developer API |
 | Pathfinding | NetworkX + Dijkstra + Nearest-Neighbor |
@@ -141,6 +145,8 @@ Output: "Pasta found. Middle shelf, left side."
 | Aira | $29+/month, human agent, not autonomous | Fully autonomous, free, no subscription |
 | Kroger app | No in-store turn-by-turn navigation | Fills the exact gap Kroger left open |
 | NavCog (CMU) | Research prototype requiring manual floor plan upload per building, BLE beacons per store, not scalable | Uses live Kroger API — zero manual setup, works at all 2,800+ locations from day one |
+| Microsoft Seeing AI | General-purpose object recognition for blind users — not store-aware, no navigation or routing | Store-specific routing, aisle-level turn-by-turn directions, shelf-position detection |
+| Be My Eyes AI | Connects blind users to sighted volunteers or GPT-4V for visual help — requires internet, human latency | Fully autonomous, no human in the loop, works offline with pre-cached store graph |
 
 ### Why WayfinderAI beats NavCog
 
