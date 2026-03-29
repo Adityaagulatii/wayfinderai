@@ -526,11 +526,7 @@ def main():
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
-
-        # ── Keyboard simulation for testing (no real camera needed) ──────────
-        # Press a digit key to simulate scanning that aisle sign
-        # e.g. press '9' -> simulates reading "A9" -> node 9
-        # Special: press 'c' for checkout, 'e' for exit, 'p' for produce
+        
         sim_node = None
         if ord("0") <= key <= ord("9"):
             sim_node = chr(key)                      # "0"-"9"
