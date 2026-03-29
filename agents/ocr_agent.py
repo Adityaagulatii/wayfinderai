@@ -105,14 +105,14 @@ def match_text(texts: list[tuple[str, float]]) -> tuple[str | None, str | None, 
     return None, None, 0
 
 
-def load_memory():
+def load_memory() -> dict:
     try:
         with open(MEMORY_PATH) as f:
             return json.load(f)
     except Exception:
         return {"history": []}
 
-def save_memory(memory):
+def save_memory(memory: dict) -> None:
     os.makedirs(os.path.dirname(MEMORY_PATH), exist_ok=True)
     with open(MEMORY_PATH, "w") as f:
         json.dump(memory, f, indent=4)
