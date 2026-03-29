@@ -13,8 +13,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tools.voice import speak, listen, beep, narrate
-
-# ── MJPEG stream server (port 8004) — frontend reads this ─────────────────
 _latest_frame = None
 _frame_lock   = threading.Lock()
 STREAM_PORT   = 8004

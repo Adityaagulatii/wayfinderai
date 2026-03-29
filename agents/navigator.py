@@ -29,10 +29,6 @@ GRAPH_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "store_graph.
 MAP_OUT    = os.path.join(os.path.dirname(__file__), "..", "data", "store_map.png")
 
 
-# ---------------------------------------------------------------------------
-# Route helpers
-# ---------------------------------------------------------------------------
-
 def _path_cost(graph: nx.DiGraph, ordered_stops: list[str]) -> float:
     """Sum of Dijkstra weights for entrance -> stop1 -> stop2 -> ... -> checkout."""
     nodes = [DEFAULT_START] + ordered_stops + ["checkout"]
