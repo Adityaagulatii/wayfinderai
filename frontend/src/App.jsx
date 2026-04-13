@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import StoreLayout from "./StoreLayout";
 import { mockMapData } from "./mockData";
+import { demoNavigate } from "./demoNavigate";
 
 const API = import.meta.env.VITE_API_URL || "";
 const SCALE_X = 82, SCALE_Y = 72, OFFSET_X = 50, OFFSET_Y = 110;
@@ -256,6 +257,18 @@ export default function App() {
   async function navigate() {
     setLoading(true); setResult(null); setCurrentStep(0);
     const itemList = items.split(",").map(s => s.trim()).filter(Boolean);
+
+    if (!API) {
+      // Demo mode: run client-side navigation on the mock store graph
+      const data = demoNavigate(itemList);
+      setResult(data);
+      if (data.directions?.[0]) {
+        speak(`Demo route ready. ${data.directions.length} stops. Starting at ${data.directions[0].name}.`);
+      }
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch(`${API}/navigate`, {
         method: "POST",
@@ -397,16 +410,6 @@ export default function App() {
 
       {tab === "nav" && (
         <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 56px)" }}>
-          {!API && (
-            <div style={{
-              background: "#fffbeb", borderBottom: "1px solid #fde68a",
-              padding: "8px 24px", fontSize: 12, color: "#92400e",
-              display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <span>⚠</span>
-              <span>Demo mode — navigation requires a live backend. Set <code style={{ background: "#fef3c7", padding: "1px 5px", borderRadius: 3 }}>VITE_API_URL</code> to enable.</span>
-            </div>
-          )}
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
           {/* ── Sidebar ── */}
@@ -448,18 +451,18 @@ export default function App() {
                 ))}
               </div>
 
-              <button onClick={navigate} disabled={loading || !items.trim() || !API} style={{
+              <button onClick={navigate} disabled={loading || !items.trim()} style={{
                 width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 8,
                 border: "none",
-                background: loading || !items.trim() || !API
+                background: loading || !items.trim()
                   ? "#e2e6ea"
                   : "linear-gradient(135deg, #2563eb, #7c3aed)",
-                color: loading || !items.trim() || !API ? "#94a3b8" : "#fff",
+                color: loading || !items.trim() ? "#94a3b8" : "#fff",
                 fontSize: 14, fontWeight: 600,
-                cursor: loading || !items.trim() || !API ? "not-allowed" : "pointer",
+                cursor: loading || !items.trim() ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
               }}>
-                {loading ? "Finding best route..." : !API ? "Backend required for navigation" : "Get Directions →"}
+                {loading ? "Finding best route..." : "Get Directions →"}
               </button>
 
               {result?.not_found?.length > 0 && (
