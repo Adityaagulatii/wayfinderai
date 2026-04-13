@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import StoreLayout from "./StoreLayout";
+import { mockMapData } from "./mockData";
 
 const API = import.meta.env.VITE_API_URL || "";
 const SCALE_X = 82, SCALE_Y = 72, OFFSET_X = 50, OFFSET_Y = 110;
@@ -447,18 +448,18 @@ export default function App() {
                 ))}
               </div>
 
-              <button onClick={navigate} disabled={loading || !items.trim()} style={{
+              <button onClick={navigate} disabled={loading || !items.trim() || !API} style={{
                 width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 8,
                 border: "none",
-                background: loading || !items.trim()
+                background: loading || !items.trim() || !API
                   ? "#e2e6ea"
                   : "linear-gradient(135deg, #2563eb, #7c3aed)",
-                color: loading || !items.trim() ? "#94a3b8" : "#fff",
+                color: loading || !items.trim() || !API ? "#94a3b8" : "#fff",
                 fontSize: 14, fontWeight: 600,
-                cursor: loading || !items.trim() ? "not-allowed" : "pointer",
+                cursor: loading || !items.trim() || !API ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
               }}>
-                {loading ? "Finding best route..." : "Get Directions →"}
+                {loading ? "Finding best route..." : !API ? "Backend required for navigation" : "Get Directions →"}
               </button>
 
               {result?.not_found?.length > 0 && (
@@ -615,8 +616,8 @@ export default function App() {
               </div>
             )}
             <StoreMap
-              nodes={mapData.nodes || []}
-              edges={mapData.edges || []}
+              nodes={mapData.nodes?.length ? mapData.nodes : mockMapData.nodes}
+              edges={mapData.edges?.length ? mapData.edges : mockMapData.edges}
               route={result?.route || []}
               currentNode={currentNode}
               currentStep={currentStep}
