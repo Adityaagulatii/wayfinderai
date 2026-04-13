@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { mockMapData, MOCK_STORE_NAME } from "./mockData";
+import { mockMapData, MOCK_STORE_NAME, MOCK_AISLE_INFO } from "./mockData";
 
 const API = import.meta.env.VITE_API_URL || "";
 const SCALE_X = 82, SCALE_Y = 72, OFFSET_X = 50, OFFSET_Y = 110;
@@ -227,10 +227,17 @@ function MapView({ mapData, sourceName, onReset }) {
     setSelected(node);
     setLoading(true);
     setAisleInfo(null);
+    if (!API) {
+      setAisleInfo(MOCK_AISLE_INFO[node.id] ?? { name: node.name, audio: "", items: [] });
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`${API}/aisle/${node.id}`);
       setAisleInfo(await res.json());
-    } catch { setAisleInfo(null); }
+    } catch {
+      setAisleInfo(MOCK_AISLE_INFO[node.id] ?? { name: node.name, audio: "", items: [] });
+    }
     setLoading(false);
   }
 
