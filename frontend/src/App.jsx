@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import StoreLayout from "./StoreLayout";
 
-const API = "http://localhost:8003";
+const API = import.meta.env.VITE_API_URL || "";
 const SCALE_X = 82, SCALE_Y = 72, OFFSET_X = 50, OFFSET_Y = 110;
 const SVG_W = 1160, SVG_H = 600;
 
@@ -335,14 +335,6 @@ export default function App() {
               fontWeight: tab === t ? 600 : 400,
             }}>{label}</button>
           ))}
-          <a href="http://localhost:3001" target="_blank" rel="noreferrer" style={{
-            marginLeft: 4, padding: "6px 16px", borderRadius: 8, fontSize: 13,
-            border: "1px solid #22c55e", background: "#f0fdf4",
-            color: "#16a34a", fontWeight: 600, textDecoration: "none",
-            display: "inline-flex", alignItems: "center", gap: 4,
-          }}>
-            Full Pipeline ↗
-          </a>
         </div>
       </div>
 
@@ -373,9 +365,9 @@ export default function App() {
           {/* Feature cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 280px)", gap: 20, marginBottom: 32 }}>
             {[
-              { icon: "🧠", label: "Agent 0", title: "Smart Chatbot", desc: "Tell me what you want to cook — I'll extract ingredients and find them in the store.", action: () => window.open("http://localhost:3001", "_blank"), btn: "Open Pipeline ↗", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
-              { icon: "🗺️", label: "Agent 2", title: "Navigate",      desc: "Enter your shopping list and get an optimised step-by-step route through the store.",  action: () => setTab("nav"),                              btn: "Start Navigating →", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-              { icon: "📷", label: "Agent 3", title: "Aisle Scanner",  desc: "Live OCR camera reads aisle signs and automatically advances your navigation route.",    action: () => window.open("http://localhost:3001", "_blank"), btn: "Open Pipeline ↗", color: "#059669", bg: "#f0fdf4", border: "#bbf7d0" },
+              { icon: "🧠", label: "Agent 0", title: "Smart Chatbot", desc: "Tell me what you want to cook — I'll extract ingredients and find them in the store.", action: () => setTab("nav"), btn: "Try Navigate →", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
+              { icon: "🗺️", label: "Agent 2", title: "Navigate",      desc: "Enter your shopping list and get an optimised step-by-step route through the store.",  action: () => setTab("nav"), btn: "Start Navigating →", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+              { icon: "📷", label: "Agent 3", title: "Aisle Scanner",  desc: "Live OCR camera reads aisle signs and automatically advances your navigation route.",    action: () => setTab("map"), btn: "View Store Map →",  color: "#059669", bg: "#f0fdf4", border: "#bbf7d0" },
             ].map(c => (
               <div key={c.title} style={{ background: "#fff", borderRadius: 16, padding: 28, border: `1px solid ${c.border}`, boxShadow: "0 4px 16px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -403,7 +395,18 @@ export default function App() {
       {tab === "map" && <StoreLayout />}
 
       {tab === "nav" && (
-        <div style={{ display: "flex", height: "calc(100vh - 56px)" }}>
+        <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 56px)" }}>
+          {!API && (
+            <div style={{
+              background: "#fffbeb", borderBottom: "1px solid #fde68a",
+              padding: "8px 24px", fontSize: 12, color: "#92400e",
+              display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <span>⚠</span>
+              <span>Demo mode — navigation requires a live backend. Set <code style={{ background: "#fef3c7", padding: "1px 5px", borderRadius: 3 }}>VITE_API_URL</code> to enable.</span>
+            </div>
+          )}
+        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
           {/* ── Sidebar ── */}
           <div style={{
@@ -624,6 +627,7 @@ export default function App() {
               </div>
             )}
           </div>
+        </div>
         </div>
       )}
 

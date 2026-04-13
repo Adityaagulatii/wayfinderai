@@ -1,6 +1,7 @@
 # Secrets & tokens — never commit these
 .env
 *.json
+!frontend/vercel.json
 
 # Keep data/ folder but not its contents
 data/*

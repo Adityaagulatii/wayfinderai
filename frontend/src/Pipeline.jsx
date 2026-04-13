@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const API = "http://localhost:8003";
+const API = import.meta.env.VITE_API_URL || "";
 
 const SCALE_X = 82, SCALE_Y = 72, OFFSET_X = 50, OFFSET_Y = 110;
 const SVG_W = 1160, SVG_H = 600;

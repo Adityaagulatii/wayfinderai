@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { mockMapData, MOCK_STORE_NAME } from "./mockData";
 
-const API = "http://localhost:8003";
+const API = import.meta.env.VITE_API_URL || "";
 const SCALE_X = 82, SCALE_Y = 72, OFFSET_X = 50, OFFSET_Y = 110;
 const SVG_W = 1160, SVG_H = 600;
 
@@ -102,6 +103,11 @@ function UploadScreen({ onLoaded }) {
   }
 
   function useDefault() {
+    if (!API) {
+      setStatus("error");
+      setMessage("No backend configured. Set VITE_API_URL to connect.");
+      return;
+    }
     setStatus("loading");
     setMessage("Loading live store data...");
     fetch(`${API}/map`)
@@ -186,7 +192,7 @@ function UploadScreen({ onLoaded }) {
         onMouseEnter={e => { e.target.style.borderColor = "#2563eb"; e.target.style.color = "#2563eb"; }}
         onMouseLeave={e => { e.target.style.borderColor = "#cbd5e1"; e.target.style.color = "#94a3b8"; }}
       >
-        Use live store data
+        Connect to backend
       </button>
 
       {/* CSV format hint */}
@@ -245,7 +251,7 @@ function MapView({ mapData, sourceName, onReset }) {
             padding: "6px 14px", borderRadius: 8, border: "1px solid #cbd5e1",
             background: "#fff", color: "#64748b", fontSize: 12, cursor: "pointer",
           }}>
-            ↩ Upload new
+            ↩ Upload / Connect
           </button>
         </div>
         <p style={{ color: "#64748b", margin: "0 0 14px", fontSize: 13 }}>
@@ -394,8 +400,8 @@ function MapView({ mapData, sourceName, onReset }) {
 
 // ── Root ───────────────────────────────────────────────────────────────────────
 export default function StoreLayout() {
-  const [mapData, setMapData]       = useState(null);
-  const [sourceName, setSourceName] = useState("");
+  const [mapData, setMapData]       = useState(mockMapData);
+  const [sourceName, setSourceName] = useState(MOCK_STORE_NAME);
 
   if (!mapData) {
     return (
@@ -410,7 +416,7 @@ export default function StoreLayout() {
     <MapView
       mapData={mapData}
       sourceName={sourceName}
-      onReset={() => { setMapData(null); setSourceName(""); }}
+      onReset={() => { setMapData(mockMapData); setSourceName(MOCK_STORE_NAME); }}
     />
   );
 }
