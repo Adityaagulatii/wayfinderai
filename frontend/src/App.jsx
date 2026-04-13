@@ -234,7 +234,7 @@ function DirIcon({ dir }) {
 }
 
 export default function App() {
-  const [tab, setTab]                 = useState("map");
+  const [tab, setTab]                 = useState("nav");
   const [mapData, setMapData]         = useState({ nodes: [], edges: [], store: "", address: "" });
   const [items, setItems]             = useState("");
   const [result, setResult]           = useState(null);
@@ -340,7 +340,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
-          {[["home", "Home"], ["nav", "Navigate"], ["map", "Store Map"]].map(([t, label]) => (
+          {[["nav", "Navigate"], ["map", "Store Map"]].map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: "6px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer",
               border: tab === t ? "1px solid #2563eb" : "1px solid transparent",
@@ -352,59 +352,6 @@ export default function App() {
         </div>
       </div>
 
-      {tab === "home" && (
-        <div style={{ minHeight: "calc(100vh - 56px)", background: "linear-gradient(135deg,#eff6ff 0%,#f5f3ff 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
-
-          {/* Hero */}
-          <div style={{ textAlign: "center", marginBottom: 56 }}>
-            <div style={{ width: 72, height: 72, borderRadius: 20, background: "linear-gradient(135deg,#2563eb,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", boxShadow: "0 8px 32px rgba(37,99,235,0.25)" }}>
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 11l19-9-9 19-2-8-8-2z"/>
-              </svg>
-            </div>
-            <h1 style={{ fontSize: 40, fontWeight: 800, color: "#1e293b", margin: "0 0 12px", letterSpacing: -1 }}>
-              Wayfinder<span style={{ color: "#7c3aed" }}>AI</span>
-            </h1>
-            <p style={{ fontSize: 17, color: "#64748b", margin: "0 0 6px", maxWidth: 480 }}>
-              AI-powered grocery navigation for everyone.
-            </p>
-            {mapData.store && (
-              <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>
-                Connected to <strong style={{ color: "#2563eb" }}>{mapData.store}</strong>
-                <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "#22c55e", marginLeft: 8, verticalAlign: "middle" }}/>
-              </p>
-            )}
-          </div>
-
-          {/* Feature cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 280px)", gap: 20, marginBottom: 32 }}>
-            {[
-              { icon: "🧠", label: "Agent 0", title: "Smart Chatbot", desc: "Tell me what you want to cook — I'll extract ingredients and find them in the store.", action: () => setTab("nav"), btn: "Try Navigate →", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
-              { icon: "🗺️", label: "Agent 2", title: "Navigate",      desc: "Enter your shopping list and get an optimised step-by-step route through the store.",  action: () => setTab("nav"), btn: "Start Navigating →", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-              { icon: "📷", label: "Agent 3", title: "Aisle Scanner",  desc: "Live OCR camera reads aisle signs and automatically advances your navigation route.",    action: () => setTab("map"), btn: "View Store Map →",  color: "#059669", bg: "#f0fdf4", border: "#bbf7d0" },
-            ].map(c => (
-              <div key={c.title} style={{ background: "#fff", borderRadius: 16, padding: 28, border: `1px solid ${c.border}`, boxShadow: "0 4px 16px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <span style={{ fontSize: 28 }}>{c.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: "uppercase", letterSpacing: 0.8 }}>{c.label}</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>{c.title}</div>
-                  </div>
-                </div>
-                <p style={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, flex: 1, margin: "0 0 20px" }}>{c.desc}</p>
-                <button onClick={c.action} style={{ padding: "10px 0", borderRadius: 10, border: "none", background: c.color, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                  {c.btn}
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* Store map link */}
-          <button onClick={() => setTab("map")} style={{ padding: "10px 28px", borderRadius: 10, border: "1px solid #e2e6ea", background: "#fff", color: "#64748b", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-            View Store Map →
-          </button>
-        </div>
-      )}
 
       {tab === "map" && <StoreLayout />}
 
